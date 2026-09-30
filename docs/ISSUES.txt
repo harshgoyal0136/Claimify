@@ -124,3 +124,8 @@ PHASE 4 — IMAGE LANE, FAST TIER  (2026-09-30)
               through a lock (one feature pass per image; family map waits for it).
 #45 OPEN      Not written in Phase 4: dino_probe.py (only if held-out Flux AUC < 0.80) and
               4.6 bench/threads-vs-processes — both need the teammate laptop + data.
+#46 OPEN      HPC is reachable over SSH from the owner's laptop, but there is no SSH key or
+              config (only known_hosts) and Claude can't type passwords/OTP. Owner to give
+              login host, username, 2FA yes/no, GPU partition, and set up key login.
+#47 OPEN      Phase 2 code does not exist yet: scripts/hpc/generate.sbatch calls a
+              generate.py that isn't written; scripts/gen/* not written either.
