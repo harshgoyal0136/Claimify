@@ -71,7 +71,7 @@ $env:QWEN_MODEL               = "<model name>"
 
 The product uses the same `AWS_BEARER_TOKEN_BEDROCK` bearer token through `boto3`
 (`Authorization: Bearer` is picked up automatically by recent boto3 versions when this
-variable is set; if the installed boto3 is older, `claimshield/llm/bedrock.py` injects the
+variable is set; if the installed boto3 is older, `claimshield/llm/__init__.py` injects the
 header via a botocore event hook — see that file).
 
 ## Compute budget (measured targets, per image at 512–1024 px)

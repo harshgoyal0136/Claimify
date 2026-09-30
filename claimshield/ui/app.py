@@ -10,7 +10,9 @@ import streamlit as st
 from PIL import Image, ImageOps
 
 from claimshield import config
+from claimshield.narrative import llm, template
 from claimshield.pipeline import finish, score_document, score_image, warm
+from claimshield.signals.documents.fields import person_name
 
 BANDS = config.cfg("thresholds")["bands"]
 BAND_COLOR = {"LOW": "green", "MEDIUM": "orange", "HIGH": "red", "UNCERTAIN": "gray"}
@@ -40,6 +42,16 @@ def show(res):
     st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
     deep = f" · deep {res.t_deep:.1f} s" if res.t_deep is not None else ""
     st.caption(f"first card {res.t_first:.2f} s · composite {res.t_fast:.2f} s{deep}")
+
+
+def narrate(claim, names=()):
+    """Template first (instant); swapped for the LLM text only if it lands within 4 s."""
+    text, pii = template.build(claim, names)
+    box = st.empty()
+    box.info(template.fill(text, pii))
+    out = llm.result(llm.start(text))  # only placeholder text leaves the process
+    if out:
+        box.info(template.fill(out, pii))
 
 
 st.set_page_config(page_title="ClaimShield", layout="wide")
@@ -74,6 +86,7 @@ if up:
             card(res.claim.signals[-1])
         with score.container():
             show(res)
+    narrate(res.claim)
 
 if doc:
     left, right = st.columns([2, 3])
@@ -100,3 +113,4 @@ if doc:
     st.markdown(f"## :{BAND_COLOR[cs.band]}[{cs.band}] · {cs.overall:.2f}")
     st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
     st.caption(f"document scored in {dres.t_total:.1f} s")
+    narrate(cs, [n for n in (person_name(dres.text),) if n])

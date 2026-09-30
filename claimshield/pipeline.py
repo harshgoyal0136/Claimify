@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import tempfile
 import time
+from datetime import datetime
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
 
 from . import config
+from .claim import consistency
 from .contracts import ClaimScore, Signal
+from .narrative import template
 from .preprocess import prepare
 from .regions import stage1, stage2
 from .scoring.composite import score_claim
 from .signals import ae_reconstruction, clip_probe, family_map, localizer
 from .signals.documents import doc_type, fields, ocr, pdf_structure
+from .signals.identity import face_match
 from .signals.forensics import c2pa, copy_move, exif, jpeg_qtables, noise_residual
 
 # card group → checks, emitted in runtime.yaml card_order.
@@ -45,9 +49,9 @@ class ImageResult:
     t0: float = 0.0
 
 
-def _safe(fn, prep) -> Signal:
+def _safe(fn, *args) -> Signal:
     try:
-        return fn(prep)
+        return fn(*args)
     except Exception as e:  # one broken check must not take the demo down
         name = fn.__module__.rsplit(".", 1)[-1]
         return Signal(name, None, 0.0, f"Check could not run ({type(e).__name__}); "
@@ -171,11 +175,77 @@ def score_document(path: str, on_card=None) -> DocResult:
                      pages[0] if pages else None, time.perf_counter() - t0)
 
 
+def score_identity(id_path: str, selfie_path: str, on_card=None) -> tuple[list[Signal], str]:
+    """→ ([face_match, selfie_synthetic], text read from the ID for the name check)."""
+    sigs = [_safe(face_match.run, prepare(id_path).rgb, prepare(selfie_path).rgb)]
+    # ponytail: the selfie's deep AE job also starts and is simply not waited for.
+    sel = score_image(selfie_path).claim.image_score
+    B = config.cfg("thresholds")["bands"]
+    sigs.append(Signal("selfie_synthetic", None, 0.0, "Selfie checks could not run; left out "
+                       "of the score.", abstained=True) if sel is None else
+                Signal("selfie_synthetic", sel, 0.6, "The selfie's own photo checks score "
+                       f"{sel:.2f} ({'looks generated or edited' if sel >= B['medium_max'] else 'no clear sign of generation' if sel < B['low_max'] else 'inconclusive'}).",
+                       {"image_score": sel}))
+    for s in sigs:
+        s.tier = "identity"
+        if on_card:
+            on_card(s)
+    try:
+        id_text = ocr.text_of(ocr.words(_page_image(id_path)))
+    except Exception:  # no Tesseract → name check becomes not applicable
+        id_text = ""
+    return sigs, id_text
+
+
+@dataclass
+class CaseResult:
+    claim: ClaimScore
+    images: list[ImageResult]
+    documents: list[DocResult]
+    narrative: str      # template text with [PLACEHOLDERS]; safe to send to the LLM
+    pii: dict           # placeholder → real value; never leaves this process
+
+
+def _exif(res: ImageResult) -> dict:
+    return next((s.evidence for s in res.claim.signals if s.name == "exif"), {})
+
+
+def score_case(photos: list[str], docs: list[str], id_path: str | None = None,
+               selfie_path: str | None = None, on_card=None) -> CaseResult:
+    """All lanes + the three claim-level checks → one ClaimScore and a template narrative."""
+    images = [score_image(p, on_card) for p in photos]
+    documents = [score_document(p, on_card) for p in docs]
+    identity, id_text = score_identity(id_path, selfie_path, on_card) if id_path and selfie_path         else ([], "")
+    images = [finish(r) for r in images]  # deep tier had the doc + identity time to land
+
+    shots = [datetime.fromisoformat(e["datetime_original"]) for e in map(_exif, images)
+             if e.get("datetime_original")]
+    cameras = [f"{e.get('make', '')} {e.get('model', '')}".strip() for e in map(_exif, images)]
+    inv_dates = [d for d in (fields.invoice_date(r.text) for r in documents if r.doc_type == "invoice") if d]
+    doc_names = [n for n in (fields.person_name(r.text) for r in documents) if n]
+    id_name = fields.person_name(id_text) if id_text else None
+    checks = [consistency.invoice_before_photo(inv_dates, shots),
+              consistency.camera_model_mismatch(cameras),
+              _safe(consistency.name_mismatch, id_name, doc_names)]
+    for s in checks:
+        s.tier = "claim"
+        if on_card:
+            on_card(s)
+
+    signals = [s for r in (*images, *documents) for s in r.claim.signals] + identity + checks
+    # the quality gate forces UNCERTAIN only when EVERY photo is degraded
+    degraded = bool(images) and all(r.quality_flag for r in images)
+    claim = score_claim(signals, quality_flag=degraded,
+                        regions=[g for r in images for g in r.claim.regions])
+    text, pii = template.build(claim, [n for n in (id_name, *doc_names) if n])
+    return CaseResult(claim, images, documents, text, pii)
+
+
 def warm() -> list[str]:
     """Load every model (fast tier + AE) up front (`make demo`). Returns problems, never raises:
     a missing model shows up as a grey card instead of blocking the app."""
     problems = []
-    for mod in (clip_probe, family_map, localizer, ae_reconstruction):
+    for mod in (clip_probe, family_map, localizer, ae_reconstruction, face_match):
         try:
             mod.warm()
         except Exception as e:

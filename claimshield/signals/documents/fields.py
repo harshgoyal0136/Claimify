@@ -162,3 +162,31 @@ def run(text: str, doc_type: str, from_ocr: bool = False) -> list[Signal]:
     return [_signal("field_arithmetic", *arithmetic(lines), "amounts", from_ocr),
             _signal("field_dates", *dates(lines, doc_type), "dates", from_ocr, (0.75, 0.7)),
             _signal("field_format", *formats(text, doc_type), "codes or numbers", from_ocr, (0.6, 0.5))]
+
+
+NAME_LABEL = re.compile(r"^\s*(name|patient(?: name)?|customer|bill to|billed to|insured|"
+                        r"claimant|surname and given names?)\s*[:\-]?\s*(.*)$", re.I)
+
+
+def person_name(text: str) -> str | None:
+    """Claimant name for the claim-level check: passport MRZ first, then a labelled line
+    (the name may sit on the line after a bare "Bill to")."""
+    lines = [ln.strip() for ln in text.splitlines()]
+    for ln in lines:
+        s = ln.replace(" ", "")
+        if len(s) == 44 and s.startswith("P") and "<<" in s:
+            surname, _, given = s[5:].partition("<<")
+            return " ".join((given.replace("<", " ").strip() + " " + surname.replace("<", " ")).split()).title()
+    for i, ln in enumerate(lines):
+        m = NAME_LABEL.match(ln)
+        if m:
+            rest = m.group(2).strip() or (lines[i + 1] if i + 1 < len(lines) else "")
+            if re.fullmatch(r"[A-Za-z][A-Za-z .'\-]{1,60}", rest):
+                return rest
+    return None
+
+
+def invoice_date(text: str) -> date | None:
+    """The document's own date (not a due date)."""
+    return next((d for k, d in dated(text.splitlines()).items()
+                 if "date" in k and not any(x in k for x in ("due", "birth", "expir"))), None)

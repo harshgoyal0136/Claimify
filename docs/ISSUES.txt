@@ -233,3 +233,35 @@ PHASE 6 — DOCUMENT LANE  (2026-09-30)
               the teammate laptop (3.11).
 #79 INFO      UI: second uploader "Claim document (PDF or scan)" → cards, version-diff
               table, band, waterfall. Full Documents tab (OCR boxes, metadata card) is 10.1.
+
+
+PHASE 7 — IDENTITY, CLAIM CHECKS, NARRATIVE  (2026-09-30)
+--------------------------------------------------------
+#80 DECISION  Claim checks score 1 when they fire and 0 when they pass: the scorer adds
+              them as a bonus (w·c·s), so a passing check must add nothing.
+#81 DECISION  selfie_synthetic = the selfie's own fast-tier image_score (confidence 0.6).
+              The selfie's deep AE job starts too and is not waited for (wasted CPU, ponytail).
+#82 DECISION  Case scoring (pipeline.score_case) merges every lane's signals into one
+              score_claim call. Quality gate: UNCERTAIN only when EVERY photo is degraded.
+              Side effect: per-photo confidence caps are not applied at case level unless all
+              photos are degraded. Revisit if the Score tab disagrees with the Images tab.
+#83 DECISION  Names for the name check: passport MRZ line 1, else a labelled line
+              (Name / Patient / Bill to / Insured / Claimant). ID text comes from OCR of the ID
+              image; without Tesseract the name check is not applicable.
+#84 DECISION  PII scrub before any LLM call: known names + regexes for email, MRZ, 10-digit
+              phones, digit runs ≥ 6 (UHID, Aadhaar, invoice-number digits). Money amounts and
+              dates are kept (the narrative needs them). fill() restores values locally.
+#85 DECISION  LLM output is accepted only if every number in it already appears in the
+              template AND the placeholder set is identical → an LLM cannot add or change a
+              number (CLAUDE.md), and cannot drop a named party.
+#86 DECISION  LLM client lives in claimshield/llm/__init__.py (Bedrock converse → Qwen via
+              openai client). ENVIRONMENT.md's reference to llm/bedrock.py updated. Bedrock
+              client: read_timeout 8 s, 1 attempt.
+#87 OPEN      face_match: InsightFace downloads buffalo_l into <models>/insightface on first
+              use (cf. #40); needs onnxruntime + MSVC-built insightface (Gate 0). Softness
+              0.05 around the 0.40 cosine threshold is uncalibrated.
+#88 INFO      UI: narrative shown under the photo and document results (template first,
+              LLM text swapped in ≤ 4 s). The case-level Score tab is Phase 10.
+#89 OPEN      Tests: 17/20 of test_face_match, test_consistency, test_narrative,
+              test_documents PASS here (system Python 3.14); 3 skip (rapidfuzz, pikepdf).
+              score_case / score_identity have no test yet (need cv2 + models) → teammate laptop.
