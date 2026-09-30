@@ -44,7 +44,8 @@ def test_manifest_keeps_seed_groups_together_and_passes_dry(tmp_path, monkeypatc
     monkeypatch.setattr(eval_script, "ROOT", tmp_path)
     assert eval_script.check_images(got) == []
 
-    got[0]["split"] = "calib" if got[0]["split"] != "calib" else "train"  # break a seed group
+    r = next(r for r in got if r["family"] == "sd15")  # held-out rows are exempt
+    r["split"] = "calib" if r["split"] != "calib" else "train"  # break a seed group
     assert any("leaks" in e for e in eval_script.check_images(got))
 
 

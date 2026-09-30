@@ -4,6 +4,7 @@ data/generated/manifest.csv (columns in docs/EVAL.md) and assign heldout + split
 Folders (all optional):
   data/seeds/**             real, family=real (data/seeds/whatsapp/** → quality=whatsapp)
   data/wild/**              real, split=wild (FPR only)
+  data/wild/faces/**        the ~200 real face crops (eval reports them separately)
   data/gan/**               fake, family=gan, split=eval_only (never trains anything)
   data/manual/<family>/**   fake, e.g. data/manual/firefly, data/manual/midjourney
 

@@ -265,3 +265,34 @@ PHASE 7 — IDENTITY, CLAIM CHECKS, NARRATIVE  (2026-09-30)
 #89 OPEN      Tests: 17/20 of test_face_match, test_consistency, test_narrative,
               test_documents PASS here (system Python 3.14); 3 skip (rapidfuzz, pikepdf).
               score_case / score_identity have no test yet (need cv2 + models) → teammate laptop.
+
+
+PHASE 8 — EVAL HARNESS + CALIBRATION  (2026-09-30)
+-------------------------------------------------
+#90 DECISION  eval.py caches every signal per image (data/cache/eval/<sha>.json: score,
+              confidence, flags, tier, family probs, IoU per localizer). The composite is
+              recomputed from the cache, so weight / calibration changes need no model run.
+              If a SIGNAL's code changes, delete data/cache/eval/ (like #41).
+#91 DECISION  Calibration (--calibrate): Platt sigmoid per signal fitted on calib rows with
+              quality=orig only → configs/calibration.yaml, applied inside score_claim (cards
+              still show raw scores). Signals with < 20 usable calib rows or one class stay
+              raw. The AE sigmoid in thresholds.yaml (#63) is kept; Platt sits on top of it.
+#92 DECISION  Weights are NOT auto-fitted: --calibrate prints suggested image-lane weights
+              (non-negative logistic coefficients rescaled to the lane total) into the
+              changelog; weights.yaml stays a human edit followed by make eval.
+#93 DECISION  Real face crops are identified by path: data/wild/faces/** (manifest.py doc).
+#94 DECISION  Documents: "flagged" = MEDIUM or HIGH, and HIGH alone; P/R reported for both,
+              recall by tamper method / scan / doc type, plus clean-doc false flags.
+              --subset N scores N image rows and max(20, N/5) docs (seed 0).
+#95 OPEN      --subset 500 < 30 min on CPU is unmeasured. The AE deep signal (~10–30 s/img
+              on CPU) alone would break it → use --signals without ae_reconstruction for the
+              in-event rerun, or run the AE column on the HPC.
+#96 OPEN      Robustness row pairs fakes and reals of the SAME quality; whatsapp exists only
+              for reals (seeds/whatsapp), so that column is "—" unless WhatsApp'd fakes are
+              added to the set.
+#97 FIXED     test_gen picked got[0] to break a seed group, but manifest rows sort flux
+              first and held-out rows are exempt from the leak check — test fixed, code OK.
+#98 INFO      This laptop's system Python 3.14 has PIL, numpy, sklearn, pytest, PyYAML (no
+              cv2, pikepdf, rapidfuzz, torch). All tests not needing cv2 run: 45 pass,
+              4 skip. The cv2 files (ae_reconstruction, forensics, localizer, pipeline,
+              regions) still only run on the teammate laptop.
