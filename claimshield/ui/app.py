@@ -9,7 +9,7 @@ import streamlit as st
 from PIL import Image, ImageOps
 
 from claimshield import config
-from claimshield.pipeline import score_image
+from claimshield.pipeline import score_image, warm
 
 BANDS = config.cfg("thresholds")["bands"]
 BAND_COLOR = {"LOW": "green", "MEDIUM": "orange", "HIGH": "red", "UNCERTAIN": "gray"}
@@ -29,6 +29,8 @@ def card(s):
 
 st.set_page_config(page_title="ClaimShield", layout="wide")
 st.title("ClaimShield")
+for problem in st.cache_resource(warm)():  # pre-warm once per server, not per upload
+    st.warning(f"Model not ready — {problem}")
 up = st.file_uploader("Claim photo", type=["jpg", "jpeg", "png", "heic", "heif", "webp"])
 
 if up:
@@ -51,5 +53,7 @@ if up:
     st.markdown(f"## :{BAND_COLOR[cs.band]}[{cs.band}] · {cs.overall:.2f}")
     if res.quality_reasons:
         st.warning("Quality gate: " + "; ".join(res.quality_reasons))
+    for r in cs.regions:
+        st.markdown(f"- {r.reason}")
     st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
     st.caption(f"first card {res.t_first:.2f} s · composite {res.t_fast:.2f} s")

@@ -1,8 +1,14 @@
 device: cpu                 # cpu | cuda
 fast_tier_executor: threads # threads | processes  (set from the bench result)
-fast_tier_workers: 3
+fast_tier_workers: 8    # 7 fast checks; bench decides the final number
 card_order: [forensics, clip_probe, localizer]
 deep_tier_enabled: true
 vae_count_cpu: 1
 vae_count_gpu: 3
 prewarm_on_launch: true
+clip: {arch: ViT-L-14, pretrained: openai}           # open_clip; 224 px
+vae: {hf_id: stable-diffusion-v1-5/stable-diffusion-v1-5, subfolder: vae}  # or <models>/vae/sd15
+trufor:   # paths relative to CLAIMSHIELD_MODELS_DIR; code vendored from grip-unina/TruFor
+  src: trufor/TruFor_train_test/test_docker/src
+  cfg: trufor/TruFor_train_test/test_docker/src/trufor.yaml
+  weights: trufor/trufor.pth.tar

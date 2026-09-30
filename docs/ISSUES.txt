@@ -69,3 +69,58 @@ PHASE 3 — WALKING SKELETON  (2026-09-30)
 #25 INFO      Empty directories already existed (arena, claim, llm, narrative,
               signals/{documents,identity,localizer}) — not visible to a files-only scan.
               Kept; they match the planned layout.
+#26 OPEN      Gate 0 deliberately deferred by the owner (2026-09-30) to keep coding.
+              Still needed: organiser ruling (#9) + clean `pip install` on the teammate
+              laptop followed by `pytest -q`. Phases 1-2 also deferred (downloads / HPC).
+
+
+PHASE 4 — IMAGE LANE, FAST TIER  (2026-09-30)
+--------------------------------------------
+#27 FIXED     config.cfg() used read_text() with no encoding → cp1252 on Windows; a non-ASCII
+              character in any YAML would crash. Now utf-8.
+#28 FIXED     preprocess sha256 cache was unbounded; train_heads/eval push thousands of
+              images through prepare() (~3 MB each) → out of memory. Now an LRU of 32.
+#29 FIXED     copy_move: with an exact copy the self-match ties at distance 0 and is not
+              always first in knnMatch → the real match was discarded. Self-matches are now
+              filtered explicitly.
+#30 OPEN      c2pa-python API differs between versions. Code uses c2pa.Reader(mime, stream)
+              + .json(), and treats an exception whose name/message contains "NotFound" as
+              "no manifest". Verify against the installed version with a Firefly JPEG.
+#31 OPEN      TruFor wrapper is UNVERIFIED: module names (config._C,
+              models.cmx.builder_np_conf.myEncoderDecoder), yaml path, /256 input scaling
+              and the (pred, conf, det, npp) output were written from memory of the upstream
+              test script. Its top-level `import config` can also collide with another
+              module named config.
+#32 OPEN      CLAUDE.md says TruFor + fallback are "vendored under models/", but models/ is
+              gitignored (weights) → vendored code would never reach git. Suggest vendor code
+              under third_party/ (committed), keep only weights in models/.
+#33 DECISION  Licence check (1.1) not done yet, so `fallback` = our own union localizer
+              (SD1.5 mini-AE at 256 px ∪ noise-residual blocks, reliability = agreement).
+              If MVSS-Net/PSCC-Net/CAT-Net passes the licence check, swap it in.
+#34 OPEN      Uncalibrated heuristic constants, all need Phase 8 eval: JPEG-ghost dip 0.8;
+              noise z 3.5 / MAD floor 0.05 / texture 12; AE low-error scale (/5); fallback
+              integrity = 99th pct of heat×reliability; copy-move ratio 0.6 / min 8 matches;
+              fixed scores/confidences in exif, jpeg_qtables, copy_move, noise_residual, c2pa.
+#35 OPEN      copy_move will fire on repetitive textures (brick, tiles) and on scanned
+              documents (repeated glyphs). The D3 scan path (Phase 6) must skip it.
+#36 OPEN      noise_residual: JPEG flattens noise in smooth areas and phones denoise
+              unevenly → false-positive risk on real photos. Watch the real-wild FPR row.
+#37 DECISION  c2pa with no manifest = applicable=False (grey card), not a neutral score —
+              weights.yaml says it contributes only when a manifest exists. Validation code
+              "untrusted" (unknown signer) is NOT treated as tampering.
+#38 DECISION  clip_probe confidence = max(0.3, |2p − 1|): unsure predictions pull less.
+#39 OPEN      fast_tier_workers raised 3 → 8 (7 fast checks). CLIP and TruFor both spawn
+              torch intra-op threads → CPU oversubscription on a 4-6 core laptop. Bench
+              with torch.set_num_threads before trusting the p95.
+#40 OPEN      First model use DOWNLOADS weights (CLIP → <models>/clip, SD VAE → <models>/hf).
+              Pre-fetch on the teammate laptop while online, then set HF_HUB_OFFLINE=1.
+#41 OPEN      CLIP feature disk cache (data/cache/clip/<sha>.npy) is not keyed by model; if
+              the CLIP arch/resolution changes, delete the cache.
+#42 INFO      Region reasons use grid positions ("middle-right"). DEMO.md's "bumper" needs
+              semantic part labels — that would be a new component, so not built.
+#43 OPEN      UI pre-warm is st.cache_resource: a model fixed while the app runs isn't
+              picked up until the app restarts.
+#44 DECISION  family_map runs in the clip_probe card group and shares the CLIP forward pass
+              through a lock (one feature pass per image; family map waits for it).
+#45 OPEN      Not written in Phase 4: dino_probe.py (only if held-out Flux AUC < 0.80) and
+              4.6 bench/threads-vs-processes — both need the teammate laptop + data.

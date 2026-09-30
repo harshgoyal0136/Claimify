@@ -12,11 +12,17 @@ from dataclasses import dataclass
 from . import config
 from .contracts import ClaimScore, Signal
 from .preprocess import prepare
+from .regions import stage1
 from .scoring.composite import score_claim
-from .signals.forensics import exif
+from .signals import clip_probe, family_map, localizer
+from .signals.forensics import c2pa, copy_move, exif, jpeg_qtables, noise_residual
 
-# card group → checks. Groups not built yet (clip_probe, localizer) are simply absent.
-FAST = {"forensics": [exif.run]}
+# card group → checks, emitted in runtime.yaml card_order.
+FAST = {
+    "forensics": [c2pa.run, exif.run, jpeg_qtables.run, copy_move.run, noise_residual.run],
+    "clip_probe": [clip_probe.run, family_map.run],
+    "localizer": [localizer.run],
+}
 
 _pool = ThreadPoolExecutor(max_workers=config.cfg("runtime")["fast_tier_workers"])
 
@@ -54,6 +60,19 @@ def score_image(path: str, on_card=None, wait_deep: bool = False) -> ImageResult
         if on_card:
             on_card(s)
 
-    claim = score_claim(signals, quality_flag=prep.quality_flag)
+    claim = score_claim(signals, quality_flag=prep.quality_flag,
+                        regions=stage1(signals, prep.rgb.size))
     return ImageResult(claim, prep.sha256, prep.quality_reasons, t_first,
                        time.perf_counter() - t0)
+
+
+def warm() -> list[str]:
+    """Load every fast-tier model up front (`make demo`). Returns problems, never raises:
+    a missing model shows up as a grey card instead of blocking the app."""
+    problems = []
+    for mod in (clip_probe, family_map, localizer):
+        try:
+            mod.warm()
+        except Exception as e:
+            problems.append(f"{mod.__name__.rsplit('.', 1)[-1]}: {e}")
+    return problems

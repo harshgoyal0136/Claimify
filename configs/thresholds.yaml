@@ -12,3 +12,5 @@ face_match: {cosine_mismatch_below: 0.40}
 localizer: {impl: trufor, input_px: 768, reliability_min: 0.6, region_min_area_frac: 0.005}
 regions: {min_signals_to_show: 2}
 narrative: {llm_swap_timeout_s: 4}
+noise_residual: {block_px: 32, z_outlier: 3.5, min_cluster_frac: 0.02, max_texture_std: 12}
+copy_move: {min_matches: 8, min_shift_px: 24, ratio: 0.6}

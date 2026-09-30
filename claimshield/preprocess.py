@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
@@ -20,12 +21,13 @@ except ImportError:
 MAX_SIDE = 1024
 
 # IJG standard luminance table (JPEG Annex K); PIL scales it by quality the same way.
-_STD_LUMA_SUM = sum([
+STD_LUMA = [
     16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55,
     14, 13, 16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62,
     18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92,
     49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99,
-])
+]
+_STD_LUMA_SUM = sum(STD_LUMA)
 
 
 @dataclass
@@ -58,14 +60,15 @@ def laplacian_var(rgb: Image.Image) -> float:
     return float(lap.var())
 
 
-# ponytail: unbounded; fine for a demo session, swap for an LRU if it runs for days.
-_cache: dict[str, Prepared] = {}
+_CACHE_MAX = 32  # training/eval stream thousands of images through prepare()
+_cache: OrderedDict[str, Prepared] = OrderedDict()
 
 
 def prepare(path: str) -> Prepared:
     data = open(path, "rb").read()
     sha = hashlib.sha256(data).hexdigest()
     if sha in _cache:
+        _cache.move_to_end(sha)
         return _cache[sha]
 
     img = Image.open(io.BytesIO(data))
@@ -86,4 +89,6 @@ def prepare(path: str) -> Prepared:
 
     prep = Prepared(path, sha, data, fmt, orig_size, rgb, exif, jpeg_q, bool(reasons), reasons)
     _cache[sha] = prep
+    if len(_cache) > _CACHE_MAX:
+        _cache.popitem(last=False)
     return prep
