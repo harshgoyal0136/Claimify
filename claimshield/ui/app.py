@@ -1,4 +1,5 @@
-"""Reviewer UI (walking skeleton): upload a photo → cards stream in → score + waterfall."""
+"""Reviewer UI: upload a photo → fast cards stream in → score; the deep AE card lands later
+and the score + waterfall are redrawn."""
 import sys
 import tempfile
 from pathlib import Path
@@ -9,7 +10,7 @@ import streamlit as st
 from PIL import Image, ImageOps
 
 from claimshield import config
-from claimshield.pipeline import score_image, warm
+from claimshield.pipeline import finish, score_image, warm
 
 BANDS = config.cfg("thresholds")["bands"]
 BAND_COLOR = {"LOW": "green", "MEDIUM": "orange", "HIGH": "red", "UNCERTAIN": "gray"}
@@ -25,6 +26,20 @@ def card(s):
                 "orange" if s.score >= BANDS["low_max"] else "green"
             st.markdown(f":{c}[**{s.name}** · {s.score:.2f}] · confidence {s.confidence:.2f}"
                         f"  \n{s.reason}")
+
+
+def show(res):
+    cs = res.claim
+    st.markdown(f"## :{BAND_COLOR[cs.band]}[{cs.band}] · {cs.overall:.2f}")
+    if cs.pending_deep:
+        st.info("Deep scan running… (reconstruction test; the score updates when it lands)")
+    if res.quality_reasons:
+        st.warning("Quality gate: " + "; ".join(res.quality_reasons))
+    for r in cs.regions:
+        st.markdown(f"- {r.reason}")
+    st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
+    deep = f" · deep {res.t_deep:.1f} s" if res.t_deep is not None else ""
+    st.caption(f"first card {res.t_first:.2f} s · composite {res.t_fast:.2f} s{deep}")
 
 
 st.set_page_config(page_title="ClaimShield", layout="wide")
@@ -48,12 +63,13 @@ if up:
 
         res = score_image(str(p), on_card=on_card)
 
-    cs = res.claim
     st.divider()
-    st.markdown(f"## :{BAND_COLOR[cs.band]}[{cs.band}] · {cs.overall:.2f}")
-    if res.quality_reasons:
-        st.warning("Quality gate: " + "; ".join(res.quality_reasons))
-    for r in cs.regions:
-        st.markdown(f"- {r.reason}")
-    st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
-    st.caption(f"first card {res.t_first:.2f} s · composite {res.t_fast:.2f} s")
+    score = st.empty()
+    with score.container():
+        show(res)
+    if res.deep is not None:
+        res = finish(res)  # fast cards are already on screen; this only waits for the AE card
+        with cards:
+            card(res.claim.signals[-1])
+        with score.container():
+            show(res)

@@ -1,7 +1,7 @@
 import numpy as np
 
 from claimshield.contracts import Signal
-from claimshield.regions import stage1
+from claimshield.regions import stage1, stage2
 
 W, H = 400, 300
 
@@ -34,3 +34,13 @@ def test_single_strong_signal_is_shown():
 
 def test_no_localizer_no_regions():
     assert stage1([noise_in_same_place()], (W, H)) == []
+
+
+def test_stage2_adds_ae_vote_inside_low_error_boxes():
+    [r] = stage1([loc(0.7), noise_in_same_place()], (W, H))
+    pm = np.zeros((H, W), np.float32)
+    pm[100:200, 250:350] = 0.9
+    [r2] = stage2([r], Signal("ae_reconstruction", 0.8, 0.7, "r", {"patch_map": pm}, tier="deep"))
+    assert r2.stage == 2 and r2.signals["ae_reconstruction"] == 0.9
+    assert "reconstruction error unusually low → consistent with" in r2.reason
+    assert stage2([r], Signal("ae_reconstruction", 0.8, 0.7, "r", {"patch_map": pm * 0}))[0].stage == 1

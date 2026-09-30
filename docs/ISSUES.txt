@@ -172,3 +172,30 @@ PHASE 1.2 / 2 — HPC + DATASET CODE  (2026-09-30)
 #61 OPEN      Phase 2 scripts NOT run with real deps (venv empty here, no installs). Only
               manifest.py + eval.py --dry smoke-tested (stdlib, dummy files): PASS.
               tests/test_gen.py to run on the teammate laptop.
+
+
+PHASE 5 — IMAGE LANE, DEEP TIER  (2026-09-30)
+--------------------------------------------
+#62 DECISION  AE card text follows FINAL_APPROACH ("…; treated as supporting evidence.");
+              ARCHITECTURE.md says "…; supporting evidence." FINAL_APPROACH wins.
+#63 OPEN      AE score = sigmoid((center − LPIPS-2 distance)/scale) with center 0.020 /
+              scale 0.005 — PLACEHOLDERS, uncalibrated. Calibrate on the calib split
+              (Phase 8); until then the AE card's number means little.
+#64 OPEN      LPIPS layer 2 uses lpips internals (m.net, m.scaling_layer, m.lins[1],
+              lpips.normalize_tensor) — unverified against the installed lpips. lpips VGG
+              also pulls torchvision vgg16 weights (~530 MB) on first use → pre-fetch (#40).
+              Flux VAE comes from FLUX.1-schnell (may need an HF login, cf. #53).
+#65 DECISION  Deep tier is submitted at the same moment as the fast tier on its own
+              1-worker executor; score_image returns with pending_deep=True, and
+              pipeline.finish() adds the AE signal, recomputes the waterfall and runs
+              regions.stage2. t_deep = when the AE job landed. CPU contention with the fast
+              tier is exactly what the Gate 5 bench must measure (see #39).
+#66 DECISION  runtime.yaml `vae:` → `vaes:` map (sd15 / sdxl / flux); vae.load(name). Local
+              override dir is <models>/vae/<name> (the sd15 path is unchanged).
+#67 INFO      regions.stage2 only re-scores stage-1 boxes: AE-only boxes are not added, and
+              boxes stage 1 hid (single weak signal) are not revived.
+#68 OPEN      Phase 5 tests (test_ae_reconstruction, deep tests in test_pipeline,
+              stage2 in test_regions) written but never run here. "Deep lands ≤ 30 s on CPU"
+              unmeasured → make bench on the teammate laptop (Gate 5).
+#69 INFO      test_pipeline now stubs ae_reconstruction.run so the suite never starts an SD
+              VAE download in a background thread.

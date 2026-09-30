@@ -1,8 +1,10 @@
 """Regions stage 1: reliability-masked localizer heatmap → connected components → boxes,
 each with a reason naming which fast signals fired inside it. A box backed by a single
-weak signal is not shown. (Stage 2 re-scores these with AE patch evidence — Phase 5.)
+weak signal is not shown. Stage 2 (deep tier) re-scores these boxes with the AE patch map.
 """
 from __future__ import annotations
+
+from dataclasses import replace
 
 import cv2
 import numpy as np
@@ -76,3 +78,20 @@ def stage1(signals: list[Signal], size: tuple[int, int]) -> list[Region]:
                   f"→ consistent with {verdict}.")
         regions.append(Region(box, float(frac), fired, reason, stage=1))
     return regions
+
+
+def stage2(regions: list[Region], ae: Signal) -> list[Region]:
+    """Boxes where AE reconstruction error is unusually low gain the AE vote and stage=2.
+    ponytail: re-scores stage-1 boxes only; AE-only boxes are not added (ARCHITECTURE "may")."""
+    pm = ae.evidence.get("patch_map") if ae.score is not None else None
+    if pm is None:
+        return regions
+    out = []
+    for r in regions:
+        x0, y0, x1, y1 = r.box
+        v = round(float(pm[y0:y1, x0:x1].mean()), 2)
+        if v >= 0.5:
+            r = replace(r, signals={**r.signals, "ae_reconstruction": v}, stage=2,
+                        reason=r.reason.replace(" → ", ", reconstruction error unusually low → ", 1))
+        out.append(r)
+    return out

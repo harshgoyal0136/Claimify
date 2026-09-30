@@ -7,7 +7,10 @@ vae_count_cpu: 1
 vae_count_gpu: 3
 prewarm_on_launch: true
 clip: {arch: ViT-L-14, pretrained: openai}           # open_clip; 224 px
-vae: {hf_id: stable-diffusion-v1-5/stable-diffusion-v1-5, subfolder: vae}  # or <models>/vae/sd15
+vaes:   # AE reconstruction uses the first vae_count_{cpu,gpu}; local copy wins: <models>/vae/<name>
+  sd15: {hf_id: stable-diffusion-v1-5/stable-diffusion-v1-5, subfolder: vae}
+  sdxl: {hf_id: stabilityai/sdxl-vae}
+  flux: {hf_id: black-forest-labs/FLUX.1-schnell, subfolder: vae}
 trufor:   # paths relative to CLAIMSHIELD_MODELS_DIR; code vendored from grip-unina/TruFor
   src: trufor/TruFor_train_test/test_docker/src
   cfg: trufor/TruFor_train_test/test_docker/src/trufor.yaml
