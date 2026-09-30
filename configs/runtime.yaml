@@ -1,0 +1,8 @@
+device: cpu                 # cpu | cuda
+fast_tier_executor: threads # threads | processes  (set from the bench result)
+fast_tier_workers: 3
+card_order: [forensics, clip_probe, localizer]
+deep_tier_enabled: true
+vae_count_cpu: 1
+vae_count_gpu: 3
+prewarm_on_launch: true

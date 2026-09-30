@@ -1,0 +1,8 @@
+models/
+data/
+.env
+*.bench.*
+__pycache__/
+*.pyc
+.venv/
+smoke_inpaint.png

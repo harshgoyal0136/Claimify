@@ -1,0 +1,27 @@
+# Deterministic composite weights. Calibrate on the calib split only. No conditional gates.
+image:
+  localizer:          0.30
+  clip_probe:         0.25
+  ae_reconstruction:  0.20   # always on; confidence capped at 0.7 in code
+  c2pa:               0.10   # contributes only when a manifest is present
+  jpeg_qtables:       0.05   # applicable=False on PNG/HEIC
+  exif:               0.04
+  copy_move:          0.04
+  noise_residual:     0.02
+  family_map:         0.00   # explanation only
+document:
+  pdf_incremental_update: 0.35
+  pdf_producer_mismatch:  0.15
+  pdf_font_anomaly:       0.15
+  field_arithmetic:       0.20
+  field_dates:            0.10
+  ocr_confidence_dip:     0.05
+identity:
+  face_match:       0.70
+  selfie_synthetic: 0.30
+claim:   # exactly three
+  invoice_before_photo:  0.10
+  camera_model_mismatch: 0.05
+  name_mismatch:         0.10
+overall:
+  formula: "0.5*max(lanes) + 0.5*mean(lanes) + claim_bonus"

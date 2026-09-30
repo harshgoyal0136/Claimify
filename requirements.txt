@@ -1,0 +1,41 @@
+# CPU wheels for torch/torchvision; everything else from PyPI.
+--extra-index-url https://download.pytorch.org/whl/cpu
+# Core
+torch
+torchvision
+numpy
+pillow
+pillow-heif
+opencv-python-headless
+scikit-learn
+scipy
+pyyaml
+pydantic
+# Detection
+diffusers
+transformers
+accelerate
+open_clip_torch
+lpips
+insightface
+onnxruntime
+# Documents
+pytesseract
+pdf2image
+pikepdf
+pypdf
+pdfplumber
+rapidfuzz
+exifread
+c2pa-python
+imagehash
+# LLM / cloud
+boto3>=1.34
+openai
+# App
+streamlit
+plotly
+# Dev
+pytest
+# Optional, Variant A only, if everything else is done:
+#   pip install fastapi uvicorn sse-starlette

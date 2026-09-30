@@ -1,0 +1,277 @@
+CLAIMSHIELD — PHASE BY PHASE EXECUTION
+======================================
+Derived from FINAL_APPROACH (wins on conflict), PREBUILD, SCHEDULE_24H, LATENCY, EVAL, DEMO.
+This file adds ordering, gates and repo state. It adds no components.
+
+Repo state at plan time: docs + configs + scripts/bench.py + scripts/smoke_bedrock.py
++ scripts/hpc/generate.sbatch. No claimshield/ package, no tests, no data, no git.
+
+Ordering principle: long-lead items first (organiser ruling, licences, weights, HPC queue),
+then a WALKING SKELETON that makes `make bench` and the UI run end-to-end on a trivial
+pipeline, then widen signal by signal. Each signal lands with a test, a bench run and a
+card in the UI.
+
+
+PHASE 0 — GATE AND REPO HYGIENE  (day 0, ~2 h)
+----------------------------------------------
+0.1  Get a WRITTEN organiser ruling on pre-existing code.
+     Allowed -> Variant A. Not allowed -> Variant B. Declare Poincare code as prior work.
+     Done when: email/screenshot saved; variant recorded at the top of this file.
+0.2  git init; .gitignore (models/, data/, .env, *.bench.*, __pycache__).
+     Done when: first commit "infra: scaffold".
+0.3  Fix requirements.txt: replace per-line `--index-url` with one top line
+     `--extra-index-url https://download.pytorch.org/whl/cpu`; REMOVE geoopt and chromadb
+     (cut features); move fastapi / uvicorn / sse-starlette to an optional section.
+     Done when: `pip install -r requirements.txt` succeeds in a clean 3.11 venv on the
+     demo laptop.
+0.4  Windows system deps: Tesseract, Poppler (pdf2image), MSVC build tools (insightface),
+     GNU make (choco install make) or document the raw commands.
+     Done when: tesseract --version, pdftoppm -v, make -v all work.
+0.5  Remove the "Hyperbolic head" row from the ENVIRONMENT.md compute table.
+     Done when: no "hyperbolic" left in ENVIRONMENT.md.
+
+GATE 0: variant known, environment installs clean.
+
+
+PHASE 1 — VERIFY THE WORLD (P0) + KICK OFF LONG-LEAD ITEMS  (~4 h + background)
+------------------------------------------------------------------------------
+Start the slow external things first, then verify locally while they run.
+
+1.1  LONG-LEAD: licence check MVSS-Net / PSCC-Net / CAT-Net -> docs/LICENCES.md with the
+     fallback decision (permissive model, or union localizer).
+     Done when: file exists with a decision.
+1.2  LONG-LEAD: HPC login, salloc, hello-world SLURM job, scp round-trip. Download
+     SD1.5 / SDXL / Flux / VAEs / CLIP / TruFor weights to $SCRATCH from the login node.
+     Done when: commands recorded in scripts/hpc/README.md; weights on scratch.
+1.3  Bedrock: `python scripts/smoke_bedrock.py photo.jpg`.
+     Done when: smoke_inpaint.png written.
+1.4  Write scripts/smoke_qwen.py (same prompt, OpenAI-compatible API).
+     Done when: passes.
+1.5  Local model smoke on CPU: TruFor heatmap; SD1.5 VAE encode->decode->LPIPS-2
+     (512 px < 15 s, 256 px < 3 s); open_clip ViT-L/14; c2pa on a Firefly JPEG;
+     insightface on two faces.
+     Done when: each prints output; timings written into ENVIRONMENT.md.
+1.6  Local SD1.5 inpaint at 384 px on CPU — measure; confirm RAM >= 16 GB.
+     Done when: number in ENVIRONMENT.md (15 steps / img2img 0.8 if > 60 s).
+1.7  Demo laptop hardening: Defender exclusions (models dir + repo), Best performance plan.
+     Done when: done once, checklist ticked.
+
+GATE 1: Bedrock + all five local models run on CPU; licence decision made.
+Anything missing (weights, key, licence) -> stop and record it. Do not stub.
+
+
+PHASE 2 — DATASET (P1)  (~1.5 days, background, parallel with Phases 3-4)
+------------------------------------------------------------------------
+Owner: arena/data. The HPC job is on the critical path — submit it as early as possible.
+
+2.1  ~500 authentic seeds (originals with EXIF AND WhatsApp-passed copies).
+     Done when: data/seeds/ populated.
+2.2  scripts/gen/make_prompts.py (200 prompts), scripts/gen/masks.py.
+     Done when: prompts + masks exist.
+2.3  scripts/hpc/generate.py + submit the sbatch: SD1.5 / SDXL / Flux x
+     {t2i, img2img, inpaint} -> ~1,200 images.
+     Done when: outputs pulled to data/generated/.
+2.4  scripts/gen/nova_attacks.py (150 seeds); 30-50 manual Firefly + Midjourney.
+     Done when: files + manifest rows.
+2.5  Eval-only GAN set ~200 (family=gan, split=eval_only). Never trains anything.
+     Done when: rows tagged; none in train.
+2.6  splice.py (150 seeds), recompress.py (q90 / q70 / q50 / dn512).
+     Done when: variants exist.
+2.7  Documents: invoices.py (100), medical.py (50), tamper_pdf.py (incremental update,
+     producer rewrite, digit paste), 30 scans.
+     Done when: clean + tampered PDFs with labels.
+2.8  Real-wild ~1,700 incl. 200 face crops, licence-checked for eval use.
+     Done when: rows with split=wild.
+2.9  data/bench/: a_12mp.heic, b_whatsapp.jpg, c_screenshot.png.
+     Done when: files present.
+2.10 manifest.csv complete; Flux heldout=1.
+     Done when: `python scripts/eval.py --dry` passes (dry mode written here).
+
+GATE 2: eval.py --dry green. Blocks CLIP head training (4.2) and all of Phase 8.
+
+
+PHASE 3 — WALKING SKELETON  (~0.5 day) — THE MOST IMPORTANT PHASE
+-----------------------------------------------------------------
+Goal: the whole shape runs end-to-end on CPU before any real model is added.
+
+3.1  claimshield/contracts.py: Signal, Region, ClaimScore exactly as ARCHITECTURE.md.
+     Done when: imported everywhere; no bare floats.
+3.2  claimshield/preprocess.py: HEIC/WebP/PNG/JPEG -> RGB, long side <= 1024, quality
+     gate from thresholds.yaml, sha256 cache.
+     Done when: test — tiny/blurry image sets quality_flag.
+3.3  One real signal: signals/forensics/exif.py, applicable=False on PNG.
+     Done when: test passes.
+3.4  scoring/composite.py: per-lane weighted mean (weights x confidence, skip n.a. /
+     abstained), overall = 0.5*max + 0.5*mean + claim_bonus, bands, UNCERTAIN rule,
+     waterfall.
+     Done when: tests for band edges, UNCERTAIN with/without strong evidence, n.a. excluded.
+3.5  claimshield/pipeline.py: score_image(path, on_card, wait_deep) with
+     ThreadPoolExecutor, card order from runtime.yaml, returns t_fast / t_deep.
+     Done when: bench.py imports and runs.
+3.6  ui/app.py: upload -> cards stream into placeholders -> score. Grey cards for
+     n.a./abstained. Uploads in a temp dir, wiped after scoring.
+     Done when: upload a photo, see a card and a band.
+3.7  make bench on the three files. Verify the nonce-byte trick doesn't break HEIC decode.
+     Done when: reports/latency_latest.md written.
+
+GATE 3: pytest -q green, make bench report exists, UI runs. Commit v0.1.
+
+
+PHASE 4 — IMAGE LANE, FAST TIER (P2 part 1)  (~1 day)
+-----------------------------------------------------
+Rule: every signal = one file + one test + re-run make bench.
+Card emission order: forensics -> CLIP -> localizer.
+
+4.1  Forensics: c2pa.py (verify signature; absence neutral), jpeg_qtables.py (n.a. on
+     PNG/HEIC), copy_move.py (SIFT + RANSAC, draws pairs), noise_residual.py.
+     Done when: each has a test incl. wrong-file-type n.a.
+4.2  clip_probe.py: 224 px, logistic head trained on heldout=0, pickled, features cached.
+     RULE: held-out Flux AUC < 0.80 -> add dino_probe.py, keep the winner.
+     Done when: held-out AUC recorded.
+4.3  localizer/base.py (Protocol), trufor.py (768 px), fallback.py (per 1.1: permissive
+     model, or mini-AE 256 px + noise-residual union). Config flag localizer.impl.
+     Done when: both produce heatmaps on CPU; test covers both.
+4.4  family_map.py: hierarchical softmax on CLIP feats, tree per FINAL_APPROACH s.1
+     (no GAN leaf), open-set rule max-prob < 0.60 -> unknown, sunburst JSON.
+     Done when: Flux mass lands on the diffusion node.
+4.5  regions.py stage 1: reliability-masked heatmap -> components -> boxes >= 0.5 % area
+     -> per-box reason; hide single-weak-signal boxes.
+     Done when: region reason strings on an inpaint sample.
+4.6  make bench. Apply LATENCY.md escalations in order if over spec.
+     Threads vs processes -> runtime.yaml.
+     Done when: first card p95 <= 2 s, composite p95 <= 8 s.
+
+GATE 4: spec met on the demo laptop with BOTH localizer impls. Commit v0.3.
+
+
+PHASE 5 — IMAGE LANE, DEEP TIER (P2 part 2)  (~0.5 day)
+-------------------------------------------------------
+5.1  ae_reconstruction.py: SD1.5 VAE (3 VAEs if GPU, min over AEs), LPIPS-2, 384 px on
+     CPU, calibration sigmoid, always on, confidence cap 0.7, fixed card text, patch
+     error map.
+     Done when: test — cap enforced; card text exact.
+5.2  Async wiring: pending_deep=True -> "deep scan running..." -> lands, waterfall
+     recomputed.
+     Done when: deep lands <= 30 s and never blocks fast cards.
+5.3  Regions stage 2: re-score boxes with AE patch evidence.
+     Done when: boxes gain stage=2 on an inpaint sample.
+
+GATE 5: bench still in spec with the deep tier running concurrently.
+
+
+PHASE 6 — DOCUMENT LANE (P2 part 3)  (~1 day; 3 h box on the diff in Variant B)
+------------------------------------------------------------------------------
+6.1  documents/pdf_structure.py: xref count -> truncate at earlier startxref -> re-parse
+     -> text diff (version diff table); producer/creator mismatch; Creation/ModDate delta;
+     rogue fonts on digits.
+     Done when: test on tamper_pdf.py outputs finds diff rows.
+6.2  documents/ocr.py: 200 dpi, --psm 6, per-word confidence, digit dips.
+     Done when: test on a scan.
+6.3  documents/doc_type.py: keyword rules first.
+     Done when: invoice / medical / ID / other on the generated set.
+6.4  templates/invoice.py, medical.py, id.py: arithmetic, tax set, date order, formats,
+     ICD-10. All checks in code; LLM only extracts to fixed JSON if ambiguous.
+     Done when: tests per template.
+6.5  D3 scan path: fast tier on the scan image.
+     Done when: a scanned tamper is flagged.
+
+GATE 6: document P/R measurable on the generated doc set.
+
+
+PHASE 7 — IDENTITY, CLAIM CHECKS, NARRATIVE  (~0.5 day)
+-------------------------------------------------------
+7.1  identity/face_match.py: buffalo_l, ArcFace cosine, threshold from yaml; selfie
+     through the fast tier.
+     Done when: test on a teammate match pair + a mismatch pair.
+7.2  claim/consistency.py: EXACTLY three checks — invoice date < photo date, camera
+     model mismatch, RapidFuzz name < 85.
+     Done when: one test per check.
+7.3  narrative/template.py: instant, from waterfall + reasons, PII placeholders.
+     Done when: deterministic output test.
+7.4  narrative/llm.py: Bedrock -> Qwen, temperature 0, background, swap only if <= 4 s.
+     PII scrubbed before the call.
+     Done when: test — timeout keeps template; no PII in payload.
+
+
+PHASE 8 — EVAL HARNESS + CALIBRATION (P3)  (~0.5 day)
+-----------------------------------------------------
+8.1  scripts/eval.py: all 9 published rows from EVAL.md incl. eval-only GAN row,
+     TruFor vs fallback IoU, robustness row. --subset 500 finishes < 30 min on CPU.
+     Done when: reports/eval_latest.md generated.
+8.2  Calibrate sigmoids + weights on calib only; report on test / heldout.
+     Done when: changelog note in the report.
+8.3  Real-wild FPR at HIGH with 95 % CI; face-crop family confusion ~0.
+     Done when: FPR <= 5 %. If a face row scores HIGH -> raise quality-gate cap, re-run;
+     do not touch weights.
+
+GATE 8: headline rows exist and are honest. From here on, any scorer change -> make eval.
+
+
+PHASE 9 — ARENA (P4)  (~0.5 day; live attack cut in Variant B)
+--------------------------------------------------------------
+9.1  arena/attacks.py: inpaint_nova, inpaint_local_sd15, recompress_q70.
+     Chain: Bedrock -> local -> pre-generated.
+     Done when: each path tested with network on and off.
+9.2  arena/run.py -> reports/arena.csv; held-out table JSON (SD1.5 / SDXL / Nova / Flux).
+     Done when: table renders.
+
+
+PHASE 10 — APP COMPLETION (P5)  (~1 day)
+----------------------------------------
+10.1 Four tabs:
+       Images    — heatmap slider, AE map, regions, family sunburst.
+       Documents — OCR boxes, diff table, metadata.
+       Score     — gauge, waterfall, narrative, accept / reject / escalate.
+       Arena.
+     Done when: DEMO.md steps 1-3 run without touching a terminal.
+10.2 SQLite audit (hashes only). Inbox with 3 cases and band chips.
+     Done when: one audit row per reviewer action.
+10.3 make demo pre-warms all fast-tier models before the UI accepts uploads.
+     Done when: first upload after launch meets the bench numbers.
+10.4 FastAPI + SSE ONLY IF everything above is done (Variant A). Otherwise skip.
+
+
+PHASE 11 — REHEARSE AND FREEZE PRE-EVENT (P6)  (~0.5 day)
+---------------------------------------------------------
+11.1 Build cases:
+       (a) clean claim
+       (b) inpainted damage + incrementally-edited invoice + matching ID
+       (c) Firefly photo with C2PA + ID/selfie mismatch
+     Done when: all three load from the inbox.
+11.2 Rehearse DEMO.md 5x: normal, Bedrock-off, TRUFOR-OFF, CPU-only, random judge photo.
+     Done when: each <= 9 min, logged.
+11.3 README (diagram, eval + latency + decisions tables, run steps); pytest -q green;
+     3-minute backup video.
+     Done when: fresh clone + README works.
+
+GATE 11 = PRE-BUILD COMPLETE. Everything after this is SCHEDULE_24H.
+
+
+PHASE 12 — EVENT DAY
+--------------------
+Follow SCHEDULE_24H.md exactly: Variant A if Gate 0 said allowed, else Variant B (which
+compresses Phases 3-11 into the 24 h with its cuts applied up front). Kill-switches and the
+cut list there are pre-committed; apply them without discussion.
+
+
+PARALLEL TRACKS
+---------------
+  Data owner:      P1 (1.1, 1.2) -> P2 (HPC job) ----------------------> P9 Arena
+  Pipeline owner:  P0 -> P1 -> P3 skeleton -> P4 -> P5 -> P8 Eval ---+
+  Floater:                     P6 Documents -> P7 --------------------+
+  Product owner:               P3.6 UI -----------> P10 App ----------+-> P11 Rehearse
+
+CRITICAL PATH: organiser ruling -> HPC generation -> CLIP head (4.2) -> eval (8) -> rehearsal.
+The skeleton (Phase 3) unblocks everyone else; do not let it slip past day 1.
+
+
+TOP RISKS
+---------
+- No written ruling before the event  -> plan for Variant B; pre-build only P0/P1.
+- TruFor weights/licence unavailable  -> fallback localizer is first-class (4.3),
+                                         rehearsed in 11.2.
+- insightface / Tesseract / Poppler install pain on Windows -> done in 0.4, day 0.
+- HPC queue delays                    -> submit in Phase 1; Nova + manual Firefly give a
+                                         minimum viable fake set.
+- Held-out Flux AUC < 0.80            -> pre-committed DINOv2 swap (4.2).
+- CPU bench over spec                 -> LATENCY.md escalations in order; kill-switch at 10 s.

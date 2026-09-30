@@ -1,0 +1,221 @@
+CLAIMSHIELD v3 — FINAL APPROACH
+================================
+Deltas from v2 only. v2's sound parts stand. Principle unchanged: win by subtracting.
+
+
+0. WHAT THE v3 CRITIQUE GOT RIGHT (accepted)
+--------------------------------------------
+- The GAN branch in the family tree and the "GAN → AE weight 0" gate reference a class
+  with zero training images. Dead code, and it made F5 unmeasurable.
+- The "unknown → AE weight 0" rule was inverted. Unknown generators are exactly where a
+  training-free signal earns its keep.
+- "< 5 s" was a target written where a measurement belongs. First-card latency is what a
+  judge perceives; composite p95 is the real spec; cold start, HEIC decode, Defender
+  scanning and core contention were unbudgeted.
+- The fallback localizer's main ingredient (AE error map) lived in the async deep tier,
+  so in fallback mode the fast tier had no localizer.
+- One flat VAE quietly shrinks the held-out Flux margin, which is the published number.
+- Variant B still too big for 2 people; the PDF time machine needs a timebox.
+- v2 had strategy and no execution layer (measurement protocol, kill-switches, schedule).
+- Signal contract needs explicit "not applicable" semantics distinct from "abstained".
+- One rehearsal with TruFor disabled is mandatory.
+
+
+1. WHERE v3 OVERRULES THE CRITIQUE: THE GAN BRANCH
+--------------------------------------------------
+The critique's fix: generate 300 content-balanced GAN images, add a GAN branch to the
+family head, keep the gate, add a face-confound countermeasure, run a gating ablation,
+and ship whichever wins. That is five new moving parts to keep alive one conditional
+rule whose value was never measured. It also adds a second research-licensed model
+(StyleGAN2, NVlabs non-commercial) into the training path — a new version of the
+TruFor licence problem — and introduces a face-confound risk that did not exist before.
+
+v3 does the subtraction the critique's own last line recommends:
+
+  DELETE the gating mechanism entirely.
+  DELETE the GAN leaf from the family tree.
+  AE is ALWAYS ON as a supporting signal with moderate weight (≈0.20 of the image lane)
+  and confidence capped at 0.7. Its card text is fixed:
+    "Reconstruction test: <low|high> error. Most informative for diffusion-generated
+     images; treated as supporting evidence."
+
+Why this is safe: on a GAN input AE votes "real" at weight 0.20 while the CLIP probe
+(UnivFD shows CLIP-feature probes transfer across GAN↔diffusion) and the localizer
+vote "fake" at combined weight 0.55+. The composite still flags. On real photos AE's
+"real" vote lowers the score, which helps the real-wild FPR number. There is no case
+where the gate would have changed a band that the weights don't already handle.
+
+What survives from the critique's idea — MEASURABILITY, not machinery:
+  - Add a small GAN set for EVALUATION ONLY: ~100 StyleGAN2 faces + ~100 BigGAN /
+    SG2-ADA car-class images. family=gan, split=eval_only. Never used to train any head.
+  - Publish one row: "composite on GAN inputs" in the signal × family heatmap, and the
+    AE column on that row will honestly show ≈0.5 AUC — that is F5 stated as a number,
+    with the composite row next to it showing the other signals cover it.
+  - Licence exposure: eval-only use of a research model's outputs is a test set, not a
+    shipped component. Nothing to explain on the deployability slide.
+
+Family tree is now:  root → { real, diffusion → {sd15, sdxl, flux*, firefly, midjourney,
+nova}, edited → {splice, copymove, inpaint} }.  (*held out.)  Hierarchical softmax,
+open-set rule max-prob < 0.60 → "unknown family", rendered as a radial tree. The unseen
+Flux beat works as before: probability mass lands on the diffusion node.
+The 200 real face crops in real-wild STAY — they protect the FPR number regardless.
+
+
+2. LATENCY SPEC (adopted verbatim, with one addition)
+-----------------------------------------------------
+  1. First signal card: p95 ≤ 2.0 s from upload.
+  2. Fast-tier composite: p95 ≤ 8.0 s on the worst-case file.
+  3. Deep tier never blocks; lands ≤ 30 s on CPU.
+  4. All fast-tier models pre-warmed at launch; app up ≥ 10 min before the slot.
+
+Measurement protocol on THE demo laptop: three worst-case files (12 MP HEIC, WhatsApp
+JPEG q~60 at 1600 px, 200 KB screenshot PNG), 20 runs each, warm cache, UI open,
+report p95. Machine state: plugged in, "Best performance" plan, Windows Defender
+exclusion on models dir + repo, no VPN, no browser tabs beyond the app.
+Escalations in order if it fails: localizer 768→512 px; CLIP 336→224 px; copy-move
+moves to the deep tier; HEIC decode moved to a thread that starts before the file
+finishes uploading.
+
+Parallelism: ThreadPoolExecutor in one process by default (torch releases the GIL);
+measure threads vs processes once on the demo laptop and keep the winner. Card order:
+forensics → CLIP probe → localizer.
+
+ADDITION: a `make bench` target that runs the protocol and writes
+reports/latency_latest.md. It is re-run at hour 0 of the event on the demo laptop and
+the result is put on the architecture slide ("first card 1.4 s p95, composite 6.1 s
+p95, 12 MP HEIC"). A spec you prove on stage beats a spec you claim.
+
+
+3. FAST-TIER LOCALIZER FALLBACK (adopted)
+-----------------------------------------
+`Localizer` interface with two implementations, both CPU-tested before the event:
+  - TruFor (prototype; non-commercial licence stated on the slide as "swappable").
+  - Fallback: a permissive-licence model if one passes the licence check done WEEKS
+    ahead (MVSS-Net / PSCC-Net / CAT-Net — read each LICENSE, don't assume); otherwise
+    our own union localizer = mini-AE at 256 px (≈2 s CPU, SD1.5 VAE) + noise-residual
+    block variance.
+Regions are two-stage in BOTH modes: stage 1 (fast) localizer boxes + reason strings;
+stage 2 (deep) boxes re-scored with AE patch evidence appended.
+One full demo rehearsal runs with TruFor disabled. If the demo has never run on the
+fallback, the fallback does not exist.
+
+
+4. DEEP TIER VAE COUNT (adopted)
+--------------------------------
+Device-conditional: CPU → 1 VAE (SD1.5). GPU present → SD1.5 + SDXL + Flux VAE,
+min-over-AEs per AEROBLADE. Eval table reports the held-out row for both settings so
+the CPU number on the demo laptop and the GPU number in the report are both honest.
+
+
+5. SIGNAL CONTRACT (adopted)
+----------------------------
+score=None + abstained=True  → quality gate ("abstained: image below 256 px").
+score=None + applicable=False → "not applicable: PNG has no JPEG quantization tables".
+UI renders these as grey cards with the reason; never as a red or empty card.
+
+
+6. DATASET v3
+-------------
+- No GAN training data. +200 GAN images, eval_only (Section 1).
+- Real-wild ≈ 1,700: 500 own + 300 WhatsApp/screenshot variants + ~700 public
+  CC0/permissive diverse (people, indoor, documents, stock-style) + 200 real face crops.
+- Flux remains the only heldout=1 family.
+
+
+7. EVAL v3 — published rows
+---------------------------
+Headline: (1) composite AUC / TPR@1%FPR test-seen vs test-heldout (Flux);
+(2) real-wild FPR at HIGH with 95% CI, n ≥ 1,500; (3) document tamper P/R.
+Supporting: (4) signal × family heatmap incl. the eval-only GAN row; (5) localizer
+comparison TruFor vs fallback, IoU on inpaint/splice; (6) attribution leaf accuracy
+on seen families + diffusion-node mass on Flux; (7) signal × quality robustness;
+(8) latency_latest.md.
+Removed: the gating ablation (no gate exists).
+
+
+8. PRE-BUILD v3 (deltas to v2's P0'–P6')
+-----------------------------------------
+P0' + measure local SD1.5 inpaint at 384 px on CPU (if > 60 s: 15 steps or img2img
+    strength 0.8; confirm ≥ 16 GB RAM); threads-vs-processes timing; `make bench`.
+P1' + 200 eval-only GAN images; real-wild to ~1,700 incl. 200 faces.
+P2' + Localizer interface with both implementations; hierarchical family softmax +
+    radial tree export; two-stage regions; AE always-on with capped confidence.
+P3' + GAN eval row; latency report. No ablation.
+P4' + local inpaint fallback wired and measured.
+P5' Variant B: single-process Streamlit, pipeline in ThreadPoolExecutor updating
+    placeholder containers; no FastAPI/SSE. Variant A keeps FastAPI only if built.
+P6' 3 cases; rehearsals: normal, Bedrock-off, TruFor-off.
+
+
+9. 24H SCHEDULE v3 (Variant A)
+------------------------------
+ 0–1   `make bench` on the demo laptop; fix machine state; record numbers.
+ 1–3   Sample-data pass: every organiser image/doc through the pipeline; fix real-photo
+       false positives FIRST; re-calibrate; `make eval`.
+ 3–5   Document hardening incl. medical template on organiser docs.
+ 5–7   UI demo path only: inbox → case → score; streaming; heatmap; diff; waterfall.
+ 7–8   CHECKPOINT: full rehearsal. Commit v0.9.
+ 8–10  Arena: Bedrock live attack + local inpaint fallback, each tested 3×.
+ 10–12 Identity lane in UI; case (c).
+ 12–13 Rest / smoke loop.
+ 13–15 Regions polish (two-stage) + family map radial tree.
+ 15–17 Robustness row + abstain beat + "not applicable" card wording pass.
+ 17–19 Final eval: real-wild FPR with CI, held-out row, localizer table, latency slide.
+ 19–21 Code quality, README, slides. Optional video keyframe beat ONLY if all green.
+ 21–23 Rehearsals: Bedrock-off, TruFor-off. Each ≤ 9 min.
+ 23–24 Freeze. Backup video. Nothing new.
+
+Variant B (no pre-built code) — further cuts in order:
+ 1. PDF time machine timeboxed to 3 h → else metadata story (producer mismatch,
+    ModDate delta, fonts, arithmetic).
+ 2. Single-process Streamlit.
+ 3. Arena live attack cut; held-out table from data generated during the event.
+ 4. Identity lane last 2 h only.
+ 5. Deep tier cut; mini-AE 256 px is the AE signal.
+ Keep always: localizer + CLIP probe + forensics + document lane + deterministic
+ scorer + 3-tab UI + abstain band + honest eval table.
+
+KILL-SWITCHES (pre-committed):
+ - Fast-tier p95 > 10 s after hour-3 fixes → localizer 512 px, CLIP 224 px.
+ - Bedrock AND local inpaint dead → pre-generated attack, one honest sentence, move on.
+ - Organiser doc type yields zero cards → keyword rule, never a live scorer change.
+ - Any real-wild face row scores HIGH → raise quality-gate cap on faces, re-run FPR,
+   do not touch weights live.
+
+
+10. DEMO DELTAS
+---------------
+- 0:40: say "first card in under two seconds" as the judge's photo goes in — proven by
+  the bench number on the slide.
+- 5:10 arena: Bedrock → local SD inpaint (talk over 20–40 s) → pre-generated. Both
+  rehearsed.
+- 8:40 slide gets three lines: "swappable localizer (TruFor for the prototype,
+  commercially-licensed model for deployment)"; "family map = hierarchical softmax over
+  the generator tree, no hyperbolic geometry"; "reconstruction test is always-on
+  supporting evidence — here is its GAN row so you can see its blind spot yourself".
+  The third line converts F5 from a weakness into a demonstration of honesty.
+
+
+11. FINAL PRIORITY ORDER
+------------------------
+ 1. Organiser ruling on pre-built code. Written answer. Gates everything.
+ 2. `make bench` + machine hardening on the demo laptop. p95, worst-case files.
+ 3. Localizer interface + fallback tested + one TruFor-off rehearsal.
+ 4. AE always-on (delete gate + GAN branch); eval-only GAN row.
+ 5. Arena local inpaint fallback measured.
+ 6. Two-stage regions with per-box reasons.
+ 7. Real-wild ≈ 1,700 + FPR with CI.
+ 8. Medical template.
+ 9. Hierarchical softmax family map + radial tree.
+10. Template-first narrative + 4 s background LLM swap.
+11. Optional, last, Variant A only: video keyframe beat.
+
+
+12. THE THREE THINGS THAT DECIDE IT (unchanged)
+-----------------------------------------------
+1. Judge's own photo: first card < 2 s, real photo never HIGH. Now a bench number.
+2. Invoice version diff + region boxes work on the organiser's samples.
+3. Live attack lands with the network optional.
+
+v3 = v2 with the dead rule deleted instead of resurrected, the blind spot published
+instead of gated, and every target replaced by a measurement.
