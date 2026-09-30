@@ -319,3 +319,35 @@ PHASE 9 — ARENA  (2026-09-30)
 #104 OPEN     Local SD1.5 inpaint time at 384 px / 15 steps on CPU unmeasured (ARCHITECTURE:
               drop steps if > 60 s). Nova maskPrompt quality on judge photos unverified.
               Arena tests (chain on/off, recompress) PASS here with fakes.
+
+
+PHASE 10 — APP COMPLETION  (2026-09-30)
+--------------------------------------
+#105 DECISION Inbox = folders under data/cases/<case_id>/; file roles by name (id / id_* →
+              ID, selfie* → selfie, *.pdf or invoice/receipt/medical/report/doc/scan* →
+              document, other images → photos), optional case.json title. Last band per case
+              in data/cache/case_bands.json for the chips. Phase 11 builds cases a/b/c there.
+#106 DECISION pipeline.score_case split into scoring + combine(): the UI streams each lane
+              into its own tab (Images / Documents / Score), then combines once. ImageResult
+              now carries the preprocessed rgb for display after the upload dir is wiped.
+#107 DECISION First open of a claim streams cards, shows the fast score with "deep scan
+              running…", waits for the AE, runs the LLM swap once, stores everything in
+              session state, then st.rerun() redraws statically. Sliders and buttons never
+              re-score; the narrative is computed once per claim per session.
+#108 DECISION Identity (ID ↔ selfie) is shown on the Score tab; there are four tabs, not five
+              (ARCHITECTURE UI list). DEMO.md's "Case (c) → Identity" beat = Score tab.
+#109 DECISION Audit: data/audit.sqlite, one row per Accept / Reject / Escalate with the
+              reviewer name (sidebar), note, band, scores JSON and the SHA-256 of every
+              evidence file — never the files.
+#110 DECISION Arena tab: upload or seed → "Score photo" (cards stream) → Attack (inpaint via
+              the live chain, or recompress q70) → before / after side by side with heatmap +
+              region boxes, the chain's honest note, then the held-out family table and the
+              robustness row from reports/heldout_table.json.
+#111 INFO     make demo pre-warms via st.cache_resource(warm) on the first page load, before
+              the sidebar uploaders render — open the app once before the demo (DEMO.md
+              checklist already says so). The local SD1.5 arena model is NOT pre-warmed
+              (large; only needed when Bedrock is down).
+#112 OPEN     app.py never launched (no streamlit/cv2 here). tests/test_app.py (AppTest smoke)
+              + visual check on the teammate laptop. plotly_chart(key=…) needs a recent
+              Streamlit (≥ 1.35-ish) — pin in requirements if the installed one is older.
+#113 INFO     10.4 FastAPI + SSE skipped (only if everything else is done; it isn't verified).

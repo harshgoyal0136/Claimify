@@ -47,6 +47,7 @@ class ImageResult:
     deep: Future | None = None    # pending (Signal, landed_at) AE job; None when done/disabled
     quality_flag: bool = False
     t0: float = 0.0
+    rgb: object = None            # the preprocessed photo, for display after uploads are wiped
 
 
 def _safe(fn, *args) -> Signal:
@@ -78,7 +79,8 @@ def score_image(path: str, on_card=None, wait_deep: bool = False) -> ImageResult
     claim = score_claim(signals, quality_flag=prep.quality_flag,
                         regions=stage1(signals, prep.rgb.size), pending_deep=deep is not None)
     res = ImageResult(claim, prep.sha256, prep.quality_reasons, t_first,
-                      time.perf_counter() - t0, deep=deep, quality_flag=prep.quality_flag, t0=t0)
+                      time.perf_counter() - t0, deep=deep, quality_flag=prep.quality_flag, t0=t0,
+                      rgb=prep.rgb)
     return finish(res) if wait_deep else res
 
 
@@ -217,7 +219,13 @@ def score_case(photos: list[str], docs: list[str], id_path: str | None = None,
     documents = [score_document(p, on_card) for p in docs]
     identity, id_text = score_identity(id_path, selfie_path, on_card) if id_path and selfie_path         else ([], "")
     images = [finish(r) for r in images]  # deep tier had the doc + identity time to land
+    return combine(images, documents, identity, id_text, on_card)
 
+
+def combine(images: list[ImageResult], documents: list[DocResult], identity: list[Signal],
+            id_text: str = "", on_card=None) -> CaseResult:
+    """Claim-level checks + one score over already-scored lanes. Images may still have a
+    pending deep tier (pending_deep is then set on the result)."""
     shots = [datetime.fromisoformat(e["datetime_original"]) for e in map(_exif, images)
              if e.get("datetime_original")]
     cameras = [f"{e.get('make', '')} {e.get('model', '')}".strip() for e in map(_exif, images)]
@@ -236,7 +244,8 @@ def score_case(photos: list[str], docs: list[str], id_path: str | None = None,
     # the quality gate forces UNCERTAIN only when EVERY photo is degraded
     degraded = bool(images) and all(r.quality_flag for r in images)
     claim = score_claim(signals, quality_flag=degraded,
-                        regions=[g for r in images for g in r.claim.regions])
+                        regions=[g for r in images for g in r.claim.regions],
+                        pending_deep=any(r.deep is not None for r in images))
     text, pii = template.build(claim, [n for n in (id_name, *doc_names) if n])
     return CaseResult(claim, images, documents, text, pii)
 
