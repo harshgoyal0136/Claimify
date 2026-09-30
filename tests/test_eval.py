@@ -66,6 +66,9 @@ def test_report_has_all_nine_sections_and_never_reports_calib(world):
         assert h in md
     assert "| test-heldout (Flux) | 40 | 80 |" in md and "gan (eval-only)" in md
     assert "No calibration file" in md
+    table = __import__("json").loads((world / "reports" / "heldout_table.json").read_text())
+    assert table["families"]["flux"]["heldout"] and table["families"]["flux"]["n"] == 40
+    assert table["families"]["gan"]["eval_only"] and "orig" in table["robustness"]
 
 
 def test_calibration_is_fitted_on_calib_only_and_applied(world):

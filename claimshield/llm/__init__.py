@@ -8,13 +8,13 @@ import os
 from functools import lru_cache
 
 
-@lru_cache(maxsize=1)
-def _bedrock():
+@lru_cache(maxsize=4)
+def _bedrock(read_timeout: int = 8):
     import boto3
     from botocore.config import Config
 
     c = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"),
-                     config=Config(read_timeout=8, connect_timeout=3, retries={"max_attempts": 1}))
+                     config=Config(read_timeout=read_timeout, connect_timeout=3, retries={"max_attempts": 1}))
     tok = os.environ.get("AWS_BEARER_TOKEN_BEDROCK")
     if tok:  # older boto3 does not pick the bearer token up by itself
         def _add(request, **kw):

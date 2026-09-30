@@ -15,3 +15,11 @@ trufor:   # paths relative to CLAIMSHIELD_MODELS_DIR; code vendored from grip-un
   src: trufor/TruFor_train_test/test_docker/src
   cfg: trufor/TruFor_train_test/test_docker/src/trufor.yaml
   weights: trufor/trufor.pth.tar
+arena:   # live attack chain: Nova Canvas → local SD1.5 inpaint (CPU) → pre-generated
+  prompt: "large dent and scratched paint, photorealistic, matching lighting"
+  mask_prompt: "the largest flat surface"
+  nova_timeout_s: 30
+  local_model: stable-diffusion-v1-5/stable-diffusion-inpainting
+  local_px: 384        # ARCHITECTURE: 384 px on CPU; drop steps to 15 if > 60 s (measure)
+  local_steps: 15
+  pregenerated_dir: data/arena/pregenerated   # filled by claimshield/arena/run.py

@@ -296,3 +296,26 @@ PHASE 8 — EVAL HARNESS + CALIBRATION  (2026-09-30)
               cv2, pikepdf, rapidfuzz, torch). All tests not needing cv2 run: 45 pass,
               4 skip. The cv2 files (ae_reconstruction, forensics, localizer, pipeline,
               regions) still only run on the teammate laptop.
+
+
+PHASE 9 — ARENA  (2026-09-30)
+----------------------------
+#99  DECISION Live chain lives in claimshield/arena/attacks.py: Nova INPAINTING with
+              maskPrompt → local SD1.5 inpaint (runtime.yaml arena: 384 px, 15 steps, CPU) →
+              first data/arena/pregenerated/inpaint_*.jpg with an honest sentence ("generated
+              before the demo on a different photo"). All three unavailable → RuntimeError
+              with every reason, shown on screen.
+#100 DECISION Local path has no maskPrompt → fixed lower-middle ellipse (~10 % of frame).
+              Patch generated at 384 px and upscaled into the full photo (softer than its
+              surroundings — a real tell the detectors may pick up).
+#101 DECISION arena/run.py runs each method on its own (no fallback) so every column of
+              reports/arena.csv is honest; the first successful inpaint per method seeds the
+              pre-generated dir.
+#102 DECISION Bedrock client now cached per read timeout (_bedrock(read_timeout)); Nova uses
+              arena.nova_timeout_s = 30, text stays at 8 s.
+#103 DECISION eval.py writes reports/heldout_table.json (sd15 / sdxl / nova / flux / gan:
+              n, AUC, TPR@1%FPR, share flagged HIGH; composite AUC by quality) for the Arena
+              tab, and section 8 summarises arena.csv per method instead of dumping it.
+#104 OPEN     Local SD1.5 inpaint time at 384 px / 15 steps on CPU unmeasured (ARCHITECTURE:
+              drop steps if > 60 s). Nova maskPrompt quality on judge photos unverified.
+              Arena tests (chain on/off, recompress) PASS here with fakes.

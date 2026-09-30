@@ -322,10 +322,24 @@ def report(rows, res, names, docs, a, note):
             fmt(auc_of([r for r in seen if r["quality"] == q], [r for r in reals if r["quality"] == q], key), 2)
             for q in QUALS) + " |")
 
-    for title, path in (("8. Arena", "reports/arena.csv"), ("9. Latency", "reports/latency_latest.md")):
-        p = ROOT / path
-        L += ["", f"## {title}", "",
-              p.read_text(encoding="utf-8").strip() if p.exists() else f"Not run yet (`{path}` missing)."]
+    L += ["", "## 8. Arena — attack × signal (reports/arena.csv)", "", arena_table()]
+    lat = ROOT / "reports" / "latency_latest.md"
+    L += ["", "## 9. Latency", "", lat.read_text(encoding="utf-8").strip() if lat.exists()
+          else "Not run yet (`reports/latency_latest.md` missing)."]
+
+    B = cfg_bands()
+    table = {"families": {}, "robustness": {}}
+    for fam in ("sd15", "sdxl", "nova", "flux", "gan"):
+        fk = [r for r in seen + held + gan if r["family"] == fam]
+        m = metrics([1] * len(fk) + [0] * len(reals), [over(r) for r in fk + reals]) if fk else None
+        table["families"][fam] = {"n": len(fk), "heldout": fam == "flux", "eval_only": fam == "gan",
+                                  "auc": m and m[0], "tpr_at_1fpr": m and m[2],
+                                  "flagged_high": rate(fk, lambda r: over(r) >= B["medium_max"])}
+    for q in QUALS:
+        table["robustness"][q] = auc_of([r for r in seen if r["quality"] == q],
+                                        [r for r in reals if r["quality"] == q], over)
+    (ROOT / "reports").mkdir(exist_ok=True)
+    (ROOT / "reports" / "heldout_table.json").write_text(json.dumps(table, indent=1), encoding="utf-8")
 
     cal = (ROOT / "configs" / "calibration.yaml").exists()
     L += ["", "## Changelog", "", note or ("configs/calibration.yaml applied (fitted earlier)." if cal
@@ -334,6 +348,33 @@ def report(rows, res, names, docs, a, note):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(L) + "\n", encoding="utf-8")
     print(f"wrote {out}")
+
+
+def cfg_bands():
+    from claimshield import config
+    return config.cfg("thresholds")["bands"]
+
+
+def arena_table():
+    """Per method: n, mean overall before → after, share flagged MEDIUM/HIGH after, and the
+    mean after-score of each signal."""
+    p = ROOT / "reports" / "arena.csv"
+    if not p.exists():
+        return "Not run yet (`python -m claimshield.arena.run`)."
+    rows = list(csv.DictReader(open(p, encoding="utf-8")))
+    sigs = sorted({k[6:] for r in rows for k in r if k.startswith("after_")})
+    L = ["| method | n | overall before → after | flagged after | " + " | ".join(sigs) + " |",
+         "|---|---|---|---|" + "---|" * len(sigs)]
+    for m in sorted({r["method"] for r in rows}):
+        rs = [r for r in rows if r["method"] == m]
+
+        def mean(k):
+            v = [float(r[k]) for r in rs if r.get(k) not in (None, "")]
+            return sum(v) / len(v) if v else None
+        L.append(f"| {m} | {len(rs)} | {fmt(mean('overall_before'), 2)} → {fmt(mean('overall_after'), 2)} | "
+                 f"{fmt(rate(rs, lambda r: r['band_after'] in ('MEDIUM', 'HIGH')), 2)} | "
+                 + " | ".join(fmt(mean('after_' + n), 2) for n in sigs) + " |")
+    return "\n".join(L)
 
 
 def calibrate(rows, res, names):
