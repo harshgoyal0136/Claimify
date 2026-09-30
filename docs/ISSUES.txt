@@ -1,0 +1,71 @@
+CLAIMSHIELD — ISSUES LOG
+========================
+Running log of problems hit while building. Appended as they come up, newest at the bottom.
+Status: OPEN (needs action) | FIXED | DECISION (docs were silent; a choice was made — review it).
+
+
+PHASE 0 — ENVIRONMENT / REPO  (2026-09-30)
+-----------------------------------------
+#1  FIXED     requirements.txt had `torch --index-url ...` on a single line — pip rejects
+              per-requirement index URLs. Replaced with one top-level
+              `--extra-index-url https://download.pytorch.org/whl/cpu`.
+#2  FIXED     requirements.txt still listed geoopt (hyperbolic head) and chromadb (feedback
+              beat) — both CUT in v3. Removed. fastapi/uvicorn/sse-starlette made optional.
+#3  FIXED     ENVIRONMENT.md compute table still had a "Hyperbolic head" row. Removed.
+#4  OPEN      Owner's laptop: no Python 3.11 (had 3.9/3.12/3.13/3.14). Installed 3.11.9
+              user-scope. Must be repeated on the teammate laptop.
+#5  OPEN      Tesseract installs via winget but is NOT put on PATH. Added
+              C:\Program Files\Tesseract-OCR to user PATH. Repeat on the teammate laptop
+              (or set pytesseract.tesseract_cmd).
+#6  OPEN      GNU make is not on Windows by default. Installed ezwinports.make via winget.
+              Repeat on the teammate laptop.
+#7  OPEN      insightface has no Windows wheel → needs MSVC C++ Build Tools (~6-7 GB).
+              Not installed. Check disk space on the teammate laptop first.
+#8  OPEN      Owner's laptop: 15.3 GB RAM (< 16 GB needed for local SD1.5 inpaint arena
+              fallback), ~19 GB free disk, AMD Radeon iGPU (no CUDA → CPU only).
+              Decision: all installs/model runs move to the teammate laptop.
+#9  OPEN      Organiser's written ruling on pre-built code (Variant A vs B) — owner to get.
+#10 OPEN      Two copies of the plan: docs/EXECUTION_PLAN.md and
+              docs/phase by phase execution.txt. They will drift. Delete one.
+#11 OPEN      Git: LF→CRLF warnings on every file. Makefile recipes with CRLF can break
+              under some make builds. Consider a .gitattributes (`* text=auto eol=lf`).
+#12 INFO      Git commits are authored with the laptop's global git identity
+              (sohammishra864-wq), not the project email. Change if that matters.
+
+
+PHASE 3 — WALKING SKELETON  (2026-09-30)
+---------------------------------------
+#13 OPEN      Code has NEVER RUN. pip install was stopped, venv is empty; only
+              `py_compile` passed. First on the teammate laptop:
+              pip install -r requirements.txt → pytest -q → streamlit run
+              claimshield/ui/app.py → make bench.
+#14 FIXED     scripts/bench.py: `python scripts/bench.py` puts scripts/ on sys.path, not
+              the repo root, so `import claimshield` failed. Inserted repo root.
+#15 FIXED     scripts/bench.py: p95(deep) crashed on None because no deep tier exists yet.
+              Now reports nan until Phase 5.
+#16 OPEN      scripts/bench.py defeats the cache by appending one byte to each file. Fine
+              for JPEG/PNG; UNVERIFIED for HEIC (pillow-heif may reject trailing data).
+#17 OPEN      scripts/bench.py writes temp files into data/bench/ itself. If a run is
+              killed, leftover *.bench.* files get benchmarked next run. Delete them or
+              write temps to a temp dir.
+#18 DECISION  ClaimScore (ARCHITECTURE contract) has no timing fields, but bench.py reads
+              res.t_fast / res.t_deep. Kept the contract exact; pipeline returns an
+              ImageResult wrapper (claim + timings + quality reasons).
+#19 DECISION  Docs say the quality gate "caps fast-tier confidences" but not where. Applied
+              in the scorer, fast-tier signals only (one place, deterministic).
+#20 DECISION  "UNCERTAIN unless strong deterministic evidence exists" — threshold was
+              undefined. Chose: a c2pa / pdf_incremental_update signal with
+              score >= bands.medium_max (0.65).
+#21 DECISION  Waterfall for a nonlinear formula (0.5*max + 0.5*mean) was undefined. Chose
+              baseline 0.5 + signed per-signal contributions that sum EXACTLY to the
+              overall score (derivation in scoring/composite.py docstring).
+#22 OPEN      weights.yaml `overall.formula` is a string for documentation only; the code
+              hardcodes the same formula. They must be kept in sync by hand.
+#23 OPEN      A check that crashes is shown as abstained=True (grey card, left out of the
+              score). The contract reserves "abstained" for the quality gate — semantics
+              mismatch. Consider an `error` flag if it matters on the Score tab.
+#24 FIXED     Browsers can't render HEIC; st.image(upload) would show nothing. UI decodes
+              with PIL (pillow-heif registered) before displaying.
+#25 INFO      Empty directories already existed (arena, claim, llm, narrative,
+              signals/{documents,identity,localizer}) — not visible to a files-only scan.
+              Kept; they match the planned layout.
