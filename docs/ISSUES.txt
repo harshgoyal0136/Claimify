@@ -199,3 +199,37 @@ PHASE 5 — IMAGE LANE, DEEP TIER  (2026-09-30)
               unmeasured → make bench on the teammate laptop (Gate 5).
 #69 INFO      test_pipeline now stubs ae_reconstruction.run so the suite never starts an SD
               VAE download in a background thread.
+
+
+PHASE 6 — DOCUMENT LANE  (2026-09-30)
+------------------------------------
+#70 DECISION  Plan named templates/invoice.py, medical.py, id.py; built as ONE file,
+              signals/documents/fields.py (shared amount/date parsing, per-type rules).
+              Empty templates/ dir removed.
+#71 DECISION  New weight field_format 0.05 (document lane): ARCHITECTURE D2 lists
+              invoice-number / ICD-10 / MRZ format checks but weights.yaml had no slot.
+              Scorer change → make eval once Phase 8 exists.
+#72 DECISION  pdf_structure returns 3 signals from one parse (incremental_update,
+              producer_mismatch, font_anomaly), as the plan's single pdf_structure.py.
+              Creation→ModDate delta folded into pdf_producer_mismatch (no own weight).
+#73 DECISION  Producer rule = known online-editor list (iLovePDF, Smallpdf, Nitro, …) and/or
+              ModDate ≥ 1 day after CreationDate. Creator≠Producer alone is NOT flagged:
+              normal pairs differ (Writer / LibreOffice). Linearized files: the first %%EOF
+              is not counted as a revision.
+#74 DECISION  Dates are parsed day-first (dd/mm/yyyy, Indian documents). A US mm/dd
+              document would mis-parse → false date-order flags.
+#75 DECISION  D3 scan path runs jpeg_qtables, noise_residual, localizer on the first page
+              image (no copy_move #35, no CLIP). Those signals keep their image-lane names,
+              so a scan's page checks count in the IMAGE lane of the composite.
+#76 INFO      doc_type: keyword counts; ties / < 2 hits → "other". The LLM-to-JSON step for
+              ambiguous docs waits for the Phase 7 LLM client.
+#77 OPEN      Scoring a producer-rewritten invoice by hand: broken arithmetic (0.85) +
+              editor producer (0.65) still lands only MEDIUM (~0.42), because "saved once"
+              (0.1, conf 0.5, weight 0.35) votes authentic. Calibrate in Phase 8 — do not
+              hand-tune now.
+#78 OPEN      Tesseract/Poppler-dependent paths (ocr.render/words, digit_paste, scans) and
+              the pikepdf/pdfplumber tests are unrun. 10/12 test_documents tests PASS here on
+              system Python 3.14 (pure logic); 2 end-to-end tests skip (no pikepdf) → run on
+              the teammate laptop (3.11).
+#79 INFO      UI: second uploader "Claim document (PDF or scan)" → cards, version-diff
+              table, band, waterfall. Full Documents tab (OCR boxes, metadata card) is 10.1.

@@ -10,7 +10,7 @@ import streamlit as st
 from PIL import Image, ImageOps
 
 from claimshield import config
-from claimshield.pipeline import finish, score_image, warm
+from claimshield.pipeline import finish, score_document, score_image, warm
 
 BANDS = config.cfg("thresholds")["bands"]
 BAND_COLOR = {"LOW": "green", "MEDIUM": "orange", "HIGH": "red", "UNCERTAIN": "gray"}
@@ -47,6 +47,7 @@ st.title("ClaimShield")
 for problem in st.cache_resource(warm)():  # pre-warm once per server, not per upload
     st.warning(f"Model not ready — {problem}")
 up = st.file_uploader("Claim photo", type=["jpg", "jpeg", "png", "heic", "heif", "webp"])
+doc = st.file_uploader("Claim document (PDF or scan)", type=["pdf", "jpg", "jpeg", "png"])
 
 if up:
     left, right = st.columns([2, 3])
@@ -73,3 +74,29 @@ if up:
             card(res.claim.signals[-1])
         with score.container():
             show(res)
+
+if doc:
+    left, right = st.columns([2, 3])
+    cards = right.container()
+    with tempfile.TemporaryDirectory() as d:  # wiped as soon as scoring ends
+        p = Path(d) / f"upload{Path(doc.name).suffix.lower()}"
+        p.write_bytes(doc.getvalue())
+
+        def on_doc_card(s):
+            with cards:
+                card(s)
+
+        dres = score_document(str(p), on_card=on_doc_card)
+    if dres.page is not None:
+        left.image(dres.page)
+    left.caption(f"type: {dres.doc_type} · text from {'OCR' if dres.from_ocr else 'text layer'}")
+    diff = next((s.evidence.get("diff") for s in dres.claim.signals
+                 if s.name == "pdf_incremental_update" and s.evidence.get("diff")), None)
+    st.divider()
+    if diff:
+        st.markdown("#### Version diff")
+        st.table([{"earlier version": a, "final version": b} for a, b in diff])
+    cs = dres.claim
+    st.markdown(f"## :{BAND_COLOR[cs.band]}[{cs.band}] · {cs.overall:.2f}")
+    st.table([{"factor": k, "contribution": f"{v:+.3f}"} for k, v in cs.waterfall])
+    st.caption(f"document scored in {dres.t_total:.1f} s")

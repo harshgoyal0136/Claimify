@@ -15,6 +15,7 @@ document:
   pdf_font_anomaly:       0.15
   field_arithmetic:       0.20
   field_dates:            0.10
+  field_format:           0.05   # invoice no. / ICD-10 / MRZ check digits (ARCHITECTURE D2)
   ocr_confidence_dip:     0.05
 identity:
   face_match:       0.70

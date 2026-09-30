@@ -15,3 +15,12 @@ regions: {min_signals_to_show: 2}
 narrative: {llm_swap_timeout_s: 4}
 noise_residual: {block_px: 32, z_outlier: 3.5, min_cluster_frac: 0.02, max_texture_std: 12}
 copy_move: {min_matches: 8, min_shift_px: 24, ratio: 0.6}
+documents:
+  tax_rates: [0, 5, 12, 18, 28]   # GST slabs; a tax line at another rate is flagged
+  amount_tol_abs: 1.0             # rupees; arithmetic mismatch below this is rounding
+  amount_tol_rel: 0.001
+  ocr_dpi: 200
+  ocr_max_pages: 3
+  ocr_dip_below: 60               # tesseract word confidence; numeric words below this dip
+  font_rare_frac: 0.05            # a font used by < 5 % of chars, mostly digits → rogue
+  mod_after_create_days: 1

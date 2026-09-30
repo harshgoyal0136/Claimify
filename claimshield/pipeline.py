@@ -7,6 +7,7 @@ with pending_deep=True and finish() folds the AE signal in once it lands.
 """
 from __future__ import annotations
 
+import tempfile
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -17,6 +18,7 @@ from .preprocess import prepare
 from .regions import stage1, stage2
 from .scoring.composite import score_claim
 from .signals import ae_reconstruction, clip_probe, family_map, localizer
+from .signals.documents import doc_type, fields, ocr, pdf_structure
 from .signals.forensics import c2pa, copy_move, exif, jpeg_qtables, noise_residual
 
 # card group → checks, emitted in runtime.yaml card_order.
@@ -85,6 +87,88 @@ def finish(res: ImageResult) -> ImageResult:
     claim = score_claim(c.signals + [ae], quality_flag=res.quality_flag,
                         regions=stage2(c.regions, ae))
     return replace(res, claim=claim, t_deep=landed - res.t0, deep=None)
+
+
+# D3: fast-tier checks that make sense on a page image. No copy_move (fires on repeated
+# glyphs, ISSUES #35), no CLIP probe (trained on photos).
+SCAN_CHECKS = [jpeg_qtables.run, noise_residual.run, localizer.run]
+
+
+@dataclass
+class DocResult:
+    claim: ClaimScore
+    sha256: str
+    doc_type: str
+    text: str
+    from_ocr: bool
+    page: object | None   # first page image (scans / image-only PDFs), for the UI
+    t_total: float
+
+
+def _page_image(path: str):
+    from PIL import Image, ImageOps
+
+    with Image.open(path) as im:
+        return ImageOps.exif_transpose(im).convert("RGB")
+
+
+def score_document(path: str, on_card=None) -> DocResult:
+    """Document lane: PDF structure → text layer or OCR → doc type → field checks; scans
+    and image-only PDFs also get the D3 page checks. Sequential: no latency spec here."""
+    import hashlib
+
+    t0 = time.perf_counter()
+    data = open(path, "rb").read()
+    signals: list[Signal] = []
+
+    def emit(s: Signal, tier: str = "doc"):
+        s.tier = tier
+        signals.append(s)
+        if on_card:
+            on_card(s)
+
+    text, pages = "", []
+    if data[:5] == b"%PDF-":
+        try:
+            structure, text, _ = pdf_structure.run(data)
+        except Exception as e:
+            structure = [Signal("pdf_incremental_update", None, 0.0, f"PDF could not be parsed "
+                                f"({type(e).__name__}); left out of the score.", {"error": str(e)},
+                                abstained=True)]
+        for s in structure:
+            emit(s)
+    scanned = data[:5] != b"%PDF-" or len(text.strip()) < 20
+    try:
+        pages = ([_page_image(path)] if data[:5] != b"%PDF-" else ocr.render(data)) if scanned else []
+        ws = [w for i, p in enumerate(pages) for w in ocr.words(p, i)]
+    except Exception as e:  # Tesseract / Poppler missing or unreadable file
+        emit(Signal(ocr.NAME, None, 0.0, f"OCR could not run ({type(e).__name__}); left out "
+                    "of the score.", {"error": str(e)}, abstained=True))
+        ws = None
+    if ws is not None and scanned:
+        emit(_safe(ocr.run, ws))
+        text = ocr.text_of(ws)
+    elif not scanned:
+        emit(Signal(ocr.NAME, None, 0.0, "Not applicable: the PDF has a text layer, so "
+                    "nothing needed OCR.", applicable=False))
+
+    kind = doc_type.classify(text)
+    for s in fields.run(text, kind, from_ocr=scanned):
+        emit(s)
+
+    quality_flag = False
+    if pages:
+        with tempfile.TemporaryDirectory() as d:
+            p = f"{d}/page.png"
+            pages[0].save(p)
+            prep = prepare(p if data[:5] == b"%PDF-" else path)
+            quality_flag = prep.quality_flag
+            for fn in SCAN_CHECKS:
+                emit(_safe(fn, prep), tier="fast")
+
+    claim = score_claim(signals, quality_flag=quality_flag)
+    return DocResult(claim, hashlib.sha256(data).hexdigest(), kind, text, scanned,
+                     pages[0] if pages else None, time.perf_counter() - t0)
 
 
 def warm() -> list[str]:
