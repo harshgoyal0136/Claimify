@@ -10,12 +10,17 @@ on a held-out generator family. Deterministic scoring; the LLM only narrates.
 
 Start with `CLAUDE.md`, then `docs/FINAL_APPROACH.txt`. Everything else is in `docs/`.
 
+**To install, download models, generate data on the HPC and run the demo, follow
+`docs/RUNBOOK.md`.** On the demo laptop the short path is:
+
 ```
-make setup && make smoke && make bench && make demo
+powershell -ExecutionPolicy Bypass -File scripts\setup\setup_windows.ps1   # tools, venv, models, tests
+make demo
 ```
 
 | Doc | What |
 |---|---|
+| docs/RUNBOOK.md | install, downloads, HPC, dataset, eval, arena, demo cases — step by step |
 | docs/FINAL_APPROACH.txt | v3 decisions and the reasoning behind each |
 | docs/PROBLEM_STATEMENT.md | rubric, condensed |
 | docs/ARCHITECTURE.md | components, contracts, decisions table |

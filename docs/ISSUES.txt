@@ -351,3 +351,24 @@ PHASE 10 — APP COMPLETION  (2026-09-30)
               + visual check on the teammate laptop. plotly_chart(key=…) needs a recent
               Streamlit (≥ 1.35-ish) — pin in requirements if the installed one is older.
 #113 INFO     10.4 FastAPI + SSE skipped (only if everything else is done; it isn't verified).
+
+
+SETUP + RUNBOOK  (2026-09-30)
+----------------------------
+#114 DECISION scripts/setup/download_models.py fetches each model by calling the app's own
+              loader (clip_probe.model, vae.load, lpips_vgg, face_match.model, TruFor().warm,
+              attacks.warm_local), so files land exactly where the code reads them; it also
+              checks Tesseract / Poppler / make / c2pa / heads / Bedrock env. Never run.
+#115 OPEN     TruFor download: git clone grip-unina/TruFor into models/trufor + weights zip
+              from grip.unina.it — URL and zip layout from memory. If it fails, the table
+              says so; use impl: fallback (RUNBOOK § 2).
+#116 OPEN     setup_windows.ps1 winget IDs (Python.Python.3.11, UB-Mannheim.TesseractOCR,
+              oschwartz10612.Poppler, ezwinports.make, VS 2022 BuildTools) unverified on the
+              demo laptop; Poppler's bin may not land on PATH.
+#117 DECISION HPC: setup_hpc.sh (login node: venv + fp16-only weight downloads + offline
+              cache check) and a laptop-side hpc.sh (check / push / setup / submit / status /
+              pull). scp paths use the absolute $SCRATCH resolved over ssh, because SFTP-mode
+              scp does not expand variables. The HF token is never passed on the command line
+              (visible in `ps` on a shared node): log in once on the HPC instead.
+#118 INFO     docs/RUNBOOK.md is the single step-by-step guide; scripts/hpc/README.md now
+              points to it. Makefile gained models / calibrate / heads / arena targets.
