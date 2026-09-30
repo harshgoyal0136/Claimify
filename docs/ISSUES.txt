@@ -129,3 +129,46 @@ PHASE 4 — IMAGE LANE, FAST TIER  (2026-09-30)
               login host, username, 2FA yes/no, GPU partition, and set up key login.
 #47 OPEN      Phase 2 code does not exist yet: scripts/hpc/generate.sbatch calls a
               generate.py that isn't written; scripts/gen/* not written either.
+
+
+PHASE 1.2 / 2 — HPC + DATASET CODE  (2026-09-30)
+------------------------------------------------
+#48 OPEN      Owner's continue-prompt still had the template placeholders (host=<login-host>,
+              user=<username>, 2FA, partition) → Phase 1.2 (ssh/sinfo/hello-world/scp) not
+              run. Phase 2 code written first; 1.2 runs as soon as the real values arrive.
+#49 DECISION  SD1.5/SDXL/Flux inpaints are family=<generator>, attack=inpaint (dirs
+              data/generated/<family>/<attack>/). The "inpaint" family leaf is unused by our
+              generators — reserved for inpaints of unknown origin.
+#50 DECISION  Generated images saved as JPEG q95 (ENVIRONMENT.md says *.jpg), not PNG: a
+              PNG-vs-JPEG gap would be a free shortcut for jpeg_qtables. Fakes still carry no
+              EXIF while seeds do → exif is a shortcut on this set; the eval must say so.
+#51 DECISION  SD/Flux inpaint output is composited back into the seed outside a feathered
+              mask (as a fraudster would); otherwise every pixel passes through the VAE and
+              the AE/CLIP numbers become unrealistically easy. Nova output kept raw.
+#52 DECISION  generate.py --n = images per model per attack (134 → 1,206 total). The
+              --heldout flag was dropped; scripts/gen/manifest.py tags flux heldout=1.
+#53 OPEN      generate.py UNVERIFIED (written from memory, HPC not reached): HF repo ids,
+              fp16 `variant` files, Flux-schnell gating (may need HF_TOKEN), Flux inpaint via
+              AutoPipeline.from_pipe (diffusers >= 0.30), Flux needs sentencepiece +
+              protobuf. SDXL repo is ~70 GB whole → download with --include filters (README).
+#54 OPEN      nova_attacks.py: Nova mask convention (black = area to edit) is from memory.
+              Check the first output with --n 1 before spending on 150 seeds.
+#55 INFO      masks.py draws geometric blobs (lower 2/3 of frame), no segmentation → some
+              masks land on sky/road. Add SAM only if inpaints look implausible.
+#56 DECISION  Split = sha1(group) → train/calib/test 60/15/25, group = seed_path, else the
+              source row (recompressed t2i), else path. Keeps each seed and all its variants
+              in one split. Flux → test (heldout=1), gan → eval_only, data/wild → wild.
+#57 DECISION  Documents get their own manifest, data/docs/manifest.csv (path, label
+              clean|tampered, doc_type, tamper, scan, src, field, old, new) — the image
+              schema has no place for PDFs. Every tamper edits `total`, so field_arithmetic
+              can catch it; producer_rewrite / incremental also move ModDate.
+#58 OPEN      tamper_pdf.incremental relies on pikepdf unparse(resolved=True) printing
+              "/Contents N G R" (asserts if not). digit_paste text width is an estimate
+              (0.6 em/char) — may leave old digits showing on long numbers.
+#59 INFO      PDFs are written with pikepdf only (no reportlab in requirements): standard
+              Type1 fonts, uncompressed-text content streams, classic xref table.
+#60 OPEN      Masks are at seed resolution; generated images are 512/1024 px (Nova 1024) and
+              dn512 variants smaller → the Phase 8 IoU row must resize mask to image.
+#61 OPEN      Phase 2 scripts NOT run with real deps (venv empty here, no installs). Only
+              manifest.py + eval.py --dry smoke-tested (stdlib, dummy files): PASS.
+              tests/test_gen.py to run on the teammate laptop.
