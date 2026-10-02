@@ -12,17 +12,20 @@ def main():
     ap.add_argument("--out", default="reports/latency_latest.md"); a = ap.parse_args()
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # repo root
     from claimshield.pipeline import score_image
+    from claimshield import preprocess
+    from claimshield.signals import clip_probe
     rows = []
     for f in sorted(pathlib.Path(a.files).iterdir()):
         first, comp, deep = [], [], []
         for i in range(a.runs):
-            # defeat the sha256 cache without touching the models: append a nonce byte
-            tmp = pathlib.Path(f"{f}.{i}.bench{f.suffix}"); tmp.write_bytes(f.read_bytes() + bytes([i]))
             t0 = time.perf_counter(); tf = [None]
             def on_card(sig):
                 if tf[0] is None: tf[0] = time.perf_counter() - t0
-            res = score_image(str(tmp), on_card=on_card, wait_deep=True)
-            first.append(tf[0]); comp.append(res.t_fast); deep.append(res.t_deep); tmp.unlink()
+            res = score_image(str(f), on_card=on_card, wait_deep=True)
+            first.append(tf[0]); comp.append(res.t_fast); deep.append(res.t_deep)
+            # every run is a fresh upload: drop the sha256-keyed caches, models stay warm
+            preprocess._cache.clear(); clip_probe._feats.clear()
+            clip_probe.cache_path(res.sha256).unlink(missing_ok=True)
         deep_p95 = float("nan") if None in deep else p95(deep)  # nan until the deep tier exists
         rows.append((f.name, p95(first), statistics.mean(first), p95(comp), statistics.mean(comp), deep_p95))
     os.makedirs(os.path.dirname(a.out), exist_ok=True)

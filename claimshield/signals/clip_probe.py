@@ -39,11 +39,17 @@ def embed(rgb) -> np.ndarray:
     return f[0].float().cpu().numpy()
 
 
+def cache_path(sha: str):
+    """Disk cache keyed by model too, so an arch/weights change never reads stale features."""
+    c = config.cfg("runtime")["clip"]
+    return config.ROOT / "data" / "cache" / "clip" / f"{c['arch']}-{c['pretrained']}" / f"{sha}.npy"
+
+
 def features(prep) -> np.ndarray:
     """L2-normalised CLIP features, cached in memory and on disk by sha256."""
     with _lock:
         if prep.sha256 not in _feats:
-            disk = config.ROOT / "data" / "cache" / "clip" / f"{prep.sha256}.npy"
+            disk = cache_path(prep.sha256)
             if disk.exists():
                 f = np.load(disk)
             else:

@@ -43,9 +43,9 @@ PHASE 3 — WALKING SKELETON  (2026-09-30)
               the repo root, so `import claimshield` failed. Inserted repo root.
 #15 FIXED     scripts/bench.py: p95(deep) crashed on None because no deep tier exists yet.
               Now reports nan until Phase 5.
-#16 OPEN      scripts/bench.py defeats the cache by appending one byte to each file. Fine
+#16 FIXED     scripts/bench.py defeats the cache by appending one byte to each file. Fine
               for JPEG/PNG; UNVERIFIED for HEIC (pillow-heif may reject trailing data).
-#17 OPEN      scripts/bench.py writes temp files into data/bench/ itself. If a run is
+#17 FIXED     scripts/bench.py writes temp files into data/bench/ itself. If a run is
               killed, leftover *.bench.* files get benchmarked next run. Delete them or
               write temps to a temp dir.
 #18 DECISION  ClaimScore (ARCHITECTURE contract) has no timing fields, but bench.py reads
@@ -114,7 +114,7 @@ PHASE 4 — IMAGE LANE, FAST TIER  (2026-09-30)
               with torch.set_num_threads before trusting the p95.
 #40 OPEN      First model use DOWNLOADS weights (CLIP → <models>/clip, SD VAE → <models>/hf).
               Pre-fetch on the teammate laptop while online, then set HF_HUB_OFFLINE=1.
-#41 OPEN      CLIP feature disk cache (data/cache/clip/<sha>.npy) is not keyed by model; if
+#41 FIXED     CLIP feature disk cache (data/cache/clip/<sha>.npy) is not keyed by model; if
               the CLIP arch/resolution changes, delete the cache.
 #42 INFO      Region reasons use grid positions ("middle-right"). DEMO.md's "bumper" needs
               semantic part labels — that would be a new component, so not built.
@@ -127,7 +127,7 @@ PHASE 4 — IMAGE LANE, FAST TIER  (2026-09-30)
 #46 OPEN      HPC is reachable over SSH from the owner's laptop, but there is no SSH key or
               config (only known_hosts) and Claude can't type passwords/OTP. Owner to give
               login host, username, 2FA yes/no, GPU partition, and set up key login.
-#47 OPEN      Phase 2 code does not exist yet: scripts/hpc/generate.sbatch calls a
+#47 FIXED     Phase 2 code does not exist yet: scripts/hpc/generate.sbatch calls a
               generate.py that isn't written; scripts/gen/* not written either.
 
 
@@ -372,3 +372,14 @@ SETUP + RUNBOOK  (2026-09-30)
               (visible in `ps` on a shared node): log in once on the HPC instead.
 #118 INFO     docs/RUNBOOK.md is the single step-by-step guide; scripts/hpc/README.md now
               points to it. Makefile gained models / calibrate / heads / arena targets.
+
+
+CLEANUP  (2026-10-02)
+---------------------
+#119 FIXED    #16/#17: bench.py no longer writes nonce-byte temp copies. It scores the file
+              itself and, after each run, clears preprocess._cache, clip_probe._feats and the
+              CLIP disk entry for that sha — every run is a fresh upload, models stay warm.
+              No HEIC trailing-byte risk, no leftover files. Unverified (no deps here).
+#120 FIXED    #41: CLIP disk cache is now data/cache/clip/<arch>-<pretrained>/<sha>.npy
+              (clip_probe.cache_path). Old flat-layout .npy files are simply ignored.
+#121 FIXED    #47 was stale: Phase 2 code landed in faf97a2.

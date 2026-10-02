@@ -111,7 +111,7 @@ Goal: the whole shape runs end-to-end on CPU before any real model is added.
 3.6  ui/app.py: upload -> cards stream into placeholders -> score. Grey cards for
      n.a./abstained. Uploads in a temp dir, wiped after scoring.
      Done when: upload a photo, see a card and a band.
-3.7  make bench on the three files. Verify the nonce-byte trick doesn't break HEIC decode.
+3.7  make bench on the three files. (bench clears the sha256 caches between runs; no nonce bytes, see ISSUES #16.)
      Done when: reports/latency_latest.md written.
 
 GATE 3: pytest -q green, make bench report exists, UI runs. Commit v0.1.

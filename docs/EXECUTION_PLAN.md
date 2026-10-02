@@ -78,7 +78,7 @@ Goal: the whole shape runs end-to-end on CPU before any real model is added.
 | 3.4 | `scoring/composite.py`: per-lane weighted mean (weights × confidence, skip n.a./abstained), `0.5*max + 0.5*mean + claim_bonus`, bands, UNCERTAIN rule, waterfall. | Tests: band edges, UNCERTAIN with/without strong evidence, n.a. excluded. |
 | 3.5 | `claimshield/pipeline.py`: `score_image(path, on_card, wait_deep)` with ThreadPoolExecutor, card order from `runtime.yaml`, returns `t_fast`/`t_deep`. | `bench.py` imports and runs. |
 | 3.6 | `ui/app.py`: upload → cards stream into placeholders → score. Grey cards for n.a./abstained. Uploads in temp dir, wiped after scoring. | Upload a photo, see a card and a band. |
-| 3.7 | `make bench` on the three files. Verify the nonce-byte trick doesn't break HEIC decode. | `reports/latency_latest.md` written. |
+| 3.7 | `make bench` on the three files. (bench clears the sha256 caches between runs; no nonce bytes, see ISSUES #16.) | `reports/latency_latest.md` written. |
 
 **Gate 3:** `pytest -q` green, `make bench` report exists, UI runs. Commit `v0.1`.
 
