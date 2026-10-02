@@ -410,3 +410,8 @@ HPC BRING-UP  (2026-10-02)
               Limitation: most downloaded seeds lack camera EXIF/phone JPEG → EXIF signal and
               "real phone photo" eval are weaker; say so in the eval report. ~20-30 own phone
               photos are still needed for data/bench (12 MP HEIC) and demo cases.
+#129 INFO     HPC 2026-10-03: img2img+inpaint smoke passed (sd15/sdxl/flux). t2i finished at N=200
+              per family (600; resubmitted with -v N=200, resume skip worked). Seeds raised to
+              1,000 VehiDE cars + 50 FUNSD docs; 1,050 masks; 200 LFW faces (Kaggle mirror; the
+              umass host does not resolve from the HPC). Full job 26315.rachel runs img2img+
+              inpaint at the default N=134; resubmit with -v N=200 to match t2i.
