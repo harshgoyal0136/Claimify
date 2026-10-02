@@ -398,3 +398,8 @@ HPC BRING-UP  (2026-10-02)
               img2img/inpaint need seeds, so t2i can run before seeds are collected.
 #125 INFO     HPC Python is 3.10, project targets 3.11. generate.py/rows.py/make_prompts.py use
               nothing 3.11-only. Unverified until the first job runs.
+#126 FIXED    HPC: model_index.json missing from the cache → user re-ran snapshot_download on the
+              login node. t2i smoke test (n=2, sd15/sdxl/flux, diffusers 0.40.0) PASSED.
+              Full t2i job 26293.rachel submitted. img2img/inpaint paths still never run.
+#127 INFO     generate.pbs walltime 3 h is a default, not a cluster limit; override at submit
+              with -l walltime=HH:MM:SS. t2i ≈ 40 min worst case, full 3-attack run ≈ 2 h.
