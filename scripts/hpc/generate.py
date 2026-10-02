@@ -90,7 +90,7 @@ def main():
     inpaint_prompts = Path(a.prompts, "inpaint_prompts.txt").read_text(encoding="utf-8").split("\n")
     prompts, inpaint_prompts = [p for p in prompts if p], [p for p in inpaint_prompts if p]
     seeds = [p for p in images(a.seeds) if "whatsapp" not in p.parts]
-    if not seeds:
+    if not seeds and a.attacks != "t2i":
         sys.exit(f"no seed images in {a.seeds}")
 
     for name in a.models.split(","):

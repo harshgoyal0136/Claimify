@@ -383,3 +383,18 @@ CLEANUP  (2026-10-02)
 #120 FIXED    #41: CLIP disk cache is now data/cache/clip/<arch>-<pretrained>/<sha>.npy
               (clip_probe.cache_path). Old flat-layout .npy files are simply ignored.
 #121 FIXED    #47 was stale: Phase 2 code landed in faf97a2.
+
+
+HPC BRING-UP  (2026-10-02)
+--------------------------
+#122 INFO     User set up the HPC by hand: BIT Mesra "rachel" (172.16.220.100), PBS scheduler
+              (qsub -q gpu -l ngpus=1), NVIDIA L40 48 GB, cu121 torch, self-built Python 3.10
+              (+ self-built libffi on LD_LIBRARY_PATH). All 5 generator repos cached in
+              ~/scratch/models/hf (49 GB). Repo dir ~/scratch/claimshield.
+#123 FIXED    Cluster is PBS, not SLURM: generate.sbatch / hpc.sh (sbatch, squeue, sinfo) don't
+              apply. Added scripts/hpc/generate.pbs (sets LD_LIBRARY_PATH, HF offline, ATTACKS/
+              MODELS/N via qsub -v). hpc.sh left SLURM-only; user drives the HPC by hand.
+#124 FIXED    generate.py exited when data/seeds was empty even for t2i-only runs. Now only
+              img2img/inpaint need seeds, so t2i can run before seeds are collected.
+#125 INFO     HPC Python is 3.10, project targets 3.11. generate.py/rows.py/make_prompts.py use
+              nothing 3.11-only. Unverified until the first job runs.
