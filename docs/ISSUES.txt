@@ -403,3 +403,10 @@ HPC BRING-UP  (2026-10-02)
               Full t2i job 26293.rachel submitted. img2img/inpaint paths still never run.
 #127 INFO     generate.pbs walltime 3 h is a default, not a cluster limit; override at submit
               with -l walltime=HH:MM:SS. t2i ≈ 40 min worst case, full 3-attack run ≈ 2 h.
+#128 DECISION Seeds may be downloaded public damage photos (car damage, cracks, documents)
+              instead of team phone photos. Layout must still follow manifest.py: seeds (real,
+              TRAIN/calib/test) in data/seeds/ flat; WhatsApp copies in data/seeds/whatsapp/
+              with the SAME file name; data/wild/ = different images, FPR only, never trains.
+              Limitation: most downloaded seeds lack camera EXIF/phone JPEG → EXIF signal and
+              "real phone photo" eval are weaker; say so in the eval report. ~20-30 own phone
+              photos are still needed for data/bench (12 MP HEIC) and demo cases.
