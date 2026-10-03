@@ -1,0 +1,25 @@
+device: cpu                 # cpu | cuda
+fast_tier_executor: threads # threads | processes
+fast_tier_workers: 2        # Minimal - reduced from 4
+card_order: [forensics]     # Only forensics initially, no CLIP or localizer
+deep_tier_enabled: false    # DISABLED - no VAE reconstruction
+vae_count_cpu: 1
+vae_count_gpu: 3
+prewarm_on_launch: false    # Load models on-demand only
+clip: {arch: ViT-L-14, pretrained: openai}
+vaes:
+  sd15: {hf_id: stable-diffusion-v1-5/stable-diffusion-v1-5, subfolder: vae}
+  sdxl: {hf_id: stabilityai/sdxl-vae}
+  flux: {hf_id: black-forest-labs/FLUX.1-schnell, subfolder: vae}
+trufor:
+  src: trufor/test_docker/src
+  cfg: trufor/test_docker/src/trufor.yaml
+  weights: trufor/trufor.pth.tar
+arena:
+  prompt: "large dent and scratched paint, photorealistic, matching lighting"
+  mask_prompt: "the largest flat surface"
+  nova_timeout_s: 30
+  local_model: stable-diffusion-v1-5/stable-diffusion-inpainting
+  local_px: 384
+  local_steps: 15
+  pregenerated_dir: data/arena/pregenerated
