@@ -1,0 +1,155 @@
+CLAIMSHIELD - OUR APPROACH IN PLAIN WORDS
+=========================================
+Hackathon: Adrosonic Build, 24 h. Problem Statement 2: AI-Powered Synthetic Identity &
+Deepfake Claim Detection. Source of truth for decisions: docs/FINAL_APPROACH.txt.
+Detail: docs/ARCHITECTURE.md. Step-by-step commands: docs/RUNBOOK.md.
+
+
+1. WHAT WE ARE BUILDING
+-----------------------
+An insurance claim comes with evidence: damage photos, invoices / medical bills (PDF or
+scans), and an ID card + selfie. ClaimShield checks every piece and answers, for an
+insurance adjuster:
+  - Is anything fake, AI-generated or edited?
+  - WHERE (boxes on the photo, changed lines in the PDF)?
+  - WHY (one plain sentence per check)?
+  - How sure (a score 0-1 and a band: LOW / MEDIUM / HIGH / UNCERTAIN)?
+
+Pitch: "Every other team ships a detector. We ship a detector AND the fraudster."
+A built-in red-team "arena" makes new fakes from real photos and shows we still catch
+them - including a generator family (Flux) the detector never saw in training.
+
+
+2. WHY THIS APPROACH (the key decisions)
+----------------------------------------
+a) Several independent signals instead of one big model.
+   One detector is easy to fool and can't explain itself. Signals that look at
+   different things (camera metadata, pixel statistics, learned features,
+   reconstruction error) fail in different ways, so together they are robust, and
+   each one gives the adjuster its own reason.
+
+b) Win by subtracting.
+   Six things that work beat twelve half-working ones. Cut on purpose: video,
+   multi-agent setups, lighting/shadow physics, hyperbolic geometry, a GAN gate.
+   New ideas go to docs/IDEAS.md, not into the code.
+
+c) Deterministic scoring - the LLM never decides a number.
+   The final score is a fixed weighted formula (configs/weights.yaml). Same input ->
+   same score, every time. Judges and insurers can audit it. The LLM only rewrites the
+   explanation text, and only if it answers within 4 s; otherwise the instant template
+   text stays.
+
+d) Fast first, deep later (two tiers).
+   What a judge feels is the first result on screen. Fast checks must show the first
+   card in <= 2 s and the full fast score in <= 8 s on a normal laptop CPU (no GPU at
+   demo time). The slow check (AE reconstruction) runs in the background and never
+   blocks the screen.
+
+e) "Generalizes to unseen fraud" must be a NUMBER, not a claim.
+   Flux images are held out: never used for training or calibration. We report how well
+   we catch them. That is the honest proof of generalization.
+
+f) Abstaining is allowed.
+   Tiny / blurry / heavily compressed image -> band UNCERTAIN instead of a guess,
+   unless there is hard evidence (C2PA credentials, a PDF version diff).
+   "Not applicable" (e.g. PNG has no JPEG tables) is shown as a grey card, not a fail.
+
+g) Swappable parts for deployability.
+   The forgery localizer (TruFor) has a non-commercial licence, so it sits behind an
+   interface with a fallback we built ourselves. The demo must run on the fallback once.
+
+h) Privacy.
+   No personal data goes to the LLM (placeholders). The audit log stores file hashes,
+   not files. Uploads are deleted after scoring.
+
+
+3. HOW IT WORKS (the pipeline)
+------------------------------
+Upload -> each file is routed to one of three lanes -> claim-level checks -> score ->
+explanation -> reviewer UI (Streamlit) -> audit log (SQLite).
+
+IMAGE LANE (damage photos, scans, selfies)
+  Fast tier (CPU, seconds):
+    - Forensics: C2PA content credentials (e.g. "made by Adobe Firefly"), EXIF camera
+      data, JPEG quantization tables, copy-move detection, noise residual.
+    - CLIP probe: frozen CLIP ViT-L/14 features + a small trained classifier
+      (real vs fake).
+    - Localizer: heatmap of WHERE the edit is (TruFor, or our fallback).
+    - Family map: which generator family it looks like (SD1.5 / SDXL / Firefly / ...),
+      or "unknown family" - shown as a tree.
+    - Regions: boxes on the photo with a reason per box.
+  Deep tier (background):
+    - AE reconstruction (AEROBLADE idea): pass the image through a Stable Diffusion
+      autoencoder; AI images rebuild with suspiciously low error. Always on, supporting
+      weight 0.20, confidence capped at 0.7.
+
+DOCUMENT LANE (invoices, medical bills, PDFs, scans)
+    - PDF structure: hidden earlier versions (incremental updates) -> "time machine"
+      diff of what was changed; producer/creator mismatch; odd fonts on digits.
+    - OCR with per-word confidence (pasted digits often read worse).
+    - Field checks by document type: items add up, tax rate valid, dates in order,
+      invoice number / ICD-10 format.
+
+IDENTITY LANE (ID card + selfie)
+    - Face match ID <-> selfie (InsightFace).
+    - Is the selfie itself synthetic (image fast tier).
+
+CLAIM-LEVEL CHECKS (exactly three)
+    1. Invoice dated before the damage photo was taken.
+    2. Photos in one claim from different camera models.
+    3. Name on the ID differs from the name on the invoice.
+
+SCORE
+    Per lane: weighted mean of the signals (weights x confidence).
+    overall = 0.5 * max(lanes) + 0.5 * mean(lanes) + claim bonus.
+    Bands: LOW < 0.35 <= MEDIUM < 0.65 <= HIGH; UNCERTAIN via the quality gate.
+    A waterfall chart shows how much each signal pushed the score.
+
+ARENA (red team)
+    Real photo -> fake it live (AWS Bedrock Nova Canvas inpaint -> local SD1.5 inpaint ->
+    pre-generated fallback) -> re-score -> show we caught it. Plus the held-out table.
+
+
+4. HOW WE PROVE IT (evaluation)
+-------------------------------
+Nothing ships without a number (make eval -> reports/eval_latest.md):
+  1. Accuracy (AUC, true-positive rate at 1 % false alarms) on seen generators vs
+     held-out Flux.
+  2. False-alarm rate on real wild photos at HIGH, with confidence interval (target
+     <= 5 %, and no real face at HIGH).
+  3. Document tamper precision / recall.
+  Supporting: signal x family heatmap (incl. an eval-only GAN row that openly shows the
+  AE blind spot), localizer TruFor vs fallback, robustness to compression/WhatsApp,
+  latency (make bench -> reports/latency_latest.md).
+
+
+5. THE DATA AND WHERE IT CAME FROM
+----------------------------------
+Real (label "real"):
+  data/seeds/         1,050 = 1,000 VehiDE car-damage photos (Kaggle, Apache 2.0)
+                              + 50 FUNSD scanned forms. Used for training/calib/test.
+  data/seeds/whatsapp/ ~100 WhatsApp round-trips of seeds, SAME file names (to collect).
+  data/wild/          1,449 = 1,300 COCO val2017 + 149 FUNSD. False-alarm test only,
+                              never trains. No overlap with seeds.
+  data/wild/faces/    200 LFW real faces (Kaggle mirror).
+Fake:
+  data/generated/{sd15,sdxl,flux}/{t2i,img2img,inpaint}/  1,800 images (200 each),
+      made on the college HPC (BIT Mesra, NVIDIA L40, PBS) with scripts/hpc/generate.py.
+      Flux = held-out family.
+  Still to make on the laptop: splices + copy-moves, Nova Canvas fakes, tampered
+      invoices / medical bills / PDFs, compressed variants (q90/q70/q50/512 px).
+  To collect by hand: ~30 Adobe Firefly images (keep C2PA), optional GAN faces.
+Known limitation: downloaded seeds mostly lack phone camera EXIF, so the EXIF signal is
+weaker in eval; ~20-30 own phone photos are used for the demo cases and bench files.
+
+
+6. WHERE WE ARE / WHAT IS LEFT
+------------------------------
+Done:  all code written (never run with real models yet); HPC fake generation done;
+       real datasets collected.
+Left:  1. Teammate laptop: scripts\setup\setup_windows.ps1 -> pytest -q green.
+       2. Copy data from HPC; phone data (WhatsApp copies, bench files, Firefly).
+       3. Rest of the dataset (RUNBOOK 6) -> eval.py --dry.
+       4. make heads -> make calibrate -> make eval -> make arena -> make bench.
+       5. Demo cases a/b/c -> rehearse docs/DEMO.md x5 -> backup video.
+Gate 0 also needs the organiser's written OK on pre-built code.
