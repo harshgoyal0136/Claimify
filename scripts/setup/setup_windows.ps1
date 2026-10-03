@@ -1,4 +1,4 @@
-# ClaimShield — one-shot setup for the DEMO laptop (Windows 10/11, PowerShell 5.1+).
+# ClaimShield - one-shot setup for the DEMO laptop (Windows 10/11, PowerShell 5.1+).
 # Run from the repo root:
 #   powershell -ExecutionPolicy Bypass -File scripts\setup\setup_windows.ps1
 # Flags: -SkipSystem (tools already installed)  -SkipModels  -SkipBuildTools  -SkipArena
@@ -8,6 +8,7 @@ param([switch]$SkipSystem, [switch]$SkipModels, [switch]$SkipBuildTools, [switch
 
 function Step($msg) { Write-Host "`n=== $msg" -ForegroundColor Cyan }
 function Fail($msg) { Write-Host "FAILED: $msg" -ForegroundColor Red; exit 1 }
+$env:PYTHONUTF8 = "1"   # python prints arrows and similar characters; the cp1252 console would crash on them
 
 if (-not (Test-Path "requirements.txt")) { Fail "run this from the repo root" }
 $free = [math]::Round((Get-PSDrive -Name (Get-Location).Drive.Name).Free / 1GB)
@@ -26,7 +27,7 @@ if (-not $SkipSystem) {
         winget install -e --id Microsoft.VisualStudio.2022.BuildTools --accept-source-agreements `
             --accept-package-agreements --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
     }
-    Step "Tesseract on PATH (winget does not add it — ISSUES #5)"
+    Step "Tesseract on PATH (winget does not add it - ISSUES #5)"
     $t = "C:\Program Files\Tesseract-OCR"
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($userPath -notlike "*$t*") { [Environment]::SetEnvironmentVariable("Path", "$userPath;$t", "User") }
@@ -37,19 +38,19 @@ if (-not $SkipSystem) {
 Step "Python 3.11 venv in .venv"
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
     py -3.11 -m venv .venv
-    if ($LASTEXITCODE -ne 0) { Fail "py -3.11 not found — open a NEW terminal after installing Python, then re-run" }
+    if ($LASTEXITCODE -ne 0) { Fail "py -3.11 not found - open a NEW terminal after installing Python, then re-run" }
 }
 $py = ".\.venv\Scripts\python.exe"
 & $py -m pip install --upgrade pip
 & $py -m pip install -r requirements.txt
-if ($LASTEXITCODE -ne 0) { Fail "pip install -r requirements.txt (insightface? → install the build tools, new terminal, re-run)" }
+if ($LASTEXITCODE -ne 0) { Fail "pip install -r requirements.txt (insightface? -> install the build tools, new terminal, re-run)" }
 
 if (-not $SkipModels) {
     Step "Models (~8 GB; same loaders the app uses)"
     $args_ = @("scripts\setup\download_models.py")
     if ($SkipArena) { $args_ += "--skip-arena" }
     & $py @args_
-    if ($LASTEXITCODE -ne 0) { Write-Host "Some model/tool checks failed — see the table above." -ForegroundColor Yellow }
+    if ($LASTEXITCODE -ne 0) { Write-Host "Some model/tool checks failed - see the table above." -ForegroundColor Yellow }
 }
 
 Step "Tests"

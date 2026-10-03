@@ -419,3 +419,8 @@ HPC BRING-UP  (2026-10-02)
               1 all-black image (sd15/img2img/0062.jpg) = SD1.5 NSFW false positive. Seeds are
               deterministic per index, so a rerun reproduces it → generate.py now loads sd15
               with safety_checker=None. Delete the black file and resubmit with -v N=200.
+#131 FIXED    setup_windows.ps1 failed to parse on the teammate laptop (PS 5.1): the file is
+              BOM-less UTF-8, PS 5.1 reads it as cp1252, and the em dash bytes E2 80 94 decode
+              to "â€”" where 0x94 is a right curly quote, which PowerShell treats as a string
+              terminator. Now pure ASCII. Also sets PYTHONUTF8=1 so Python's non-ASCII prints
+              don't crash the cp1252 console. Rule: keep .ps1 files ASCII-only.
