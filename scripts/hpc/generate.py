@@ -44,6 +44,10 @@ def load(name, attack):
     kw = {"torch_dtype": torch.bfloat16 if name == "flux" else torch.float16}
     if variant:
         kw["variant"] = variant
+    if name == "sd15":
+        # NSFW checker false-fires on damage photos → all-black output; seeds are fixed, so a
+        # rerun would black out the same image again
+        kw["safety_checker"] = None
     if attack == "inpaint" and inpaint_id:
         return AutoPipelineForInpainting.from_pretrained(inpaint_id, **kw).to("cuda")
     pipe = AutoPipelineForText2Image.from_pretrained(mid, **kw).to("cuda")

@@ -415,3 +415,7 @@ HPC BRING-UP  (2026-10-02)
               1,000 VehiDE cars + 50 FUNSD docs; 1,050 masks; 200 LFW faces (Kaggle mirror; the
               umass host does not resolve from the HPC). Full job 26315.rachel runs img2img+
               inpaint at the default N=134; resubmit with -v N=200 to match t2i.
+#130 FIXED    HPC: top-up to N=200 for img2img/inpaint did not land (all 6 dirs still at 134).
+              1 all-black image (sd15/img2img/0062.jpg) = SD1.5 NSFW false positive. Seeds are
+              deterministic per index, so a rerun reproduces it → generate.py now loads sd15
+              with safety_checker=None. Delete the black file and resubmit with -v N=200.
